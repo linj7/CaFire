@@ -7,7 +7,7 @@ Calcium mini analysis is a software developed in Python that allows users to ana
 - Calculate baseline
 - Calculate Amplitude 
 - Calculate rise time and decay time
-- Export these statistics.
+- Export these statistics
 
 ## Compile Into EXE
 
