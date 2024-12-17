@@ -436,7 +436,7 @@ class App(customtkinter.CTk):
 
         # Version label
         self.left_sidebar_frame.grid_rowconfigure(row_counter, weight=1)  # Push version label to bottom
-        self.version_label = customtkinter.CTkLabel(self.left_sidebar_frame, text="v.1.0.1")
+        self.version_label = customtkinter.CTkLabel(self.left_sidebar_frame, text="v.1.0.2")
         self.version_label.grid(row=row_counter, column=0, padx=10, pady=10, sticky="se")
         
         # Create a frame for the canvas and overlay widgets
@@ -531,6 +531,10 @@ class App(customtkinter.CTk):
         self.decay_lines = []
         self.decay_calculated = [] 
         self.decay_line_map = {} 
+        self.rise_lines = []
+        self.rise_calculated = [] 
+        self.rise_line_map = {}
+        self.rise_times = {}  
         self.tau_values = {}  
         self.amplitudes = {} 
         self.baseline_line = None
@@ -638,7 +642,7 @@ class App(customtkinter.CTk):
             return
 
         # Clear previous points, texts, and decay lines
-        self.clear_plot(clear_decay=True)
+        self.clear_plot(clear=True)
 
         # Signal-to-noise ratio (SNR) based peak detection
         noise_level = np.std(self.df_f)  # Estimate noise level using standard deviation of the signal
@@ -667,6 +671,7 @@ class App(customtkinter.CTk):
                     self.texts.append(text)
                     self.marked_peaks.append((self.time.iloc[peak], self.df_f.iloc[peak]))
                     self.decay_calculated.append(False)
+                    self.rise_calculated.append(False)
         self.marked_peaks.sort()
         self.canvas.draw()
 
@@ -699,7 +704,7 @@ class App(customtkinter.CTk):
             return
 
         # Clear previous points, texts, and decay lines
-        self.clear_plot(clear_decay=True)
+        self.clear_plot(clear=True)
 
         # Find peaks with the provided threshold and distance
         peaks, _ = find_peaks(self.df_f, height=peak_threshold, distance=min_distance)
@@ -725,6 +730,7 @@ class App(customtkinter.CTk):
                     self.texts.append(text)
                     self.marked_peaks.append((self.time.iloc[peak], self.df_f.iloc[peak]))
                     self.decay_calculated.append(False)
+                    self.rise_calculated.append(False)
         self.marked_peaks.sort()
         self.canvas.draw()
 
@@ -895,7 +901,7 @@ class App(customtkinter.CTk):
                 tau_fitted = popt[0]
                 t_fit = t_data_range
                 y_fit = self.decay_function(t_fit, tau_fitted, y0)
-                decay_line, = self.ax.plot(self.time[current_peak_index:min_index_between_peaks + 1], y_fit, color='r', linewidth=2)
+                decay_line, = self.ax.plot(self.time[current_peak_index:min_index_between_peaks + 1], y_fit, color='k', linestyle='--')
                 self.decay_lines.append(decay_line)
                 self.decay_line_map[(current_peak_time, current_peak_value)] = decay_line
                 self.tau_values[(current_peak_time, current_peak_value)] = tau_fitted
@@ -903,15 +909,21 @@ class App(customtkinter.CTk):
                 self.canvas.draw()
             except RuntimeError:
                 messagebox.showwarning(title="Warning", message=f"Decay fitting failed for peak at {current_peak_time}.")
+        messagebox.showinfo(title="Success", message="Decay time successfully calculated for all peaks.")
 
     def calculate_rise(self):
         if self.time is None or self.df_f is None:
             messagebox.showwarning(title="Warning", message="No data loaded.")
             return
 
-        self.rise_times = {} 
+        # Sort marked peaks by time
+        self.marked_peaks = sorted(self.marked_peaks, key=lambda peak: peak[0])
 
-        for (peak_time, peak_value) in self.marked_peaks:
+        for i, (peak_time, peak_value) in enumerate(self.marked_peaks):
+            # Skip if rise has already been calculated for this peak
+            if self.rise_calculated[i]:
+                continue
+
             peak_index = self.time[self.time == peak_time].index[0]
 
             rise_start_index = None
@@ -934,18 +946,32 @@ class App(customtkinter.CTk):
                 else:
                     break  # Exit if no new local minimum is found
 
-            rise_time = self.time[rise_end_index] - self.time[rise_start_index]
-            self.rise_times[(peak_time, peak_value)] = rise_time
+            # Fit rise function
+            interval_data = self.df_f
+            t_data = np.arange(rise_start_index, peak_index + 1)
+            t_data_range = t_data - rise_start_index
+            y_data = interval_data[rise_start_index : peak_index + 1]
+            y_data = np.array(y_data)  # Ensure y_data is a numpy array
+            y0 = max(y_data[0], 0.01)
 
-            # # Draw a marker for the rise start point in the window
-            # if rise_start_index in self.time.index:
-            #     self.ax.plot(self.time[rise_start_index], self.df_f[rise_start_index], 'go')  # 用绿色标记上升起始点
+            try:
+                popt, pcov = curve_fit(lambda t, tau: self.rise_function(t, tau, y0), t_data_range, y_data, p0=[0.5], bounds=(0.001, np.inf))
+                tau_fitted = popt[0]
+                t_fit = np.linspace(0, t_data_range[-1], 100)
+                y_fit = self.rise_function(t_fit, tau_fitted, y0)
+                rise_line, = self.ax.plot(self.time[rise_start_index] + t_fit, y_fit, 'r--', label=f'Rise Fit')   
+                self.rise_lines.append(rise_line)
+                self.rise_line_map[(peak_time, peak_value)] = rise_line
+                self.rise_times[(peak_time, peak_value)] = tau_fitted
+                self.rise_calculated[i] = True
+            except RuntimeError:
+                messagebox.showwarning(title="Warning", message=f"Rise fitting failed for peak at {peak_time}.")
 
-        # # Update the plot
-        # self.canvas.draw()
+        # Update the plot
+        self.canvas.draw()
         messagebox.showinfo(title="Success", message="Rise time successfully calculated for all peaks.")
-
-    def clear_plot(self, clear_decay=False):
+    
+    def clear_plot(self, clear=False):
         for point, text in zip(self.points, self.texts):
             point.remove()
             text.remove()
@@ -953,11 +979,17 @@ class App(customtkinter.CTk):
         self.texts.clear()
         self.marked_peaks.clear()
         self.decay_calculated.clear()
-        if clear_decay:
+        self.rise_calculated.clear()
+        if clear:
             for line in self.decay_lines:
                 line.remove()
             self.decay_lines.clear()
             self.decay_line_map.clear()
+            for line in self.rise_lines:
+                line.remove()
+            self.rise_lines.clear()
+            self.rise_line_map.clear()
+            self.rise_times.clear()
             self.tau_values.clear()
             self.amplitudes.clear()
         if self.baseline_line is not None:
@@ -971,6 +1003,14 @@ class App(customtkinter.CTk):
         Natural Logarithm of Decay Formula. y = y0 * e^{-t/tau}
         """
         return y0 * np.exp(-t / tau)
+
+    @staticmethod
+    def rise_function(t, tau, y0_baseline):
+        """
+        Exponential growth: y = y0 x e^{t/tau}
+        REF: https://www.graphpad.com/guides/prism/latest/curve-fitting/reg_exponential_growth.htm
+        """
+        return y0_baseline * np.exp(t / tau)
 
     def onclick(self, event):
         if self.time is None or self.df_f is None:
@@ -1020,10 +1060,11 @@ class App(customtkinter.CTk):
                             self.texts.append(text)
                             self.marked_peaks.append((x_peak, y_peak))
                             self.decay_calculated.append(False)
+                            self.rise_calculated.append(False)
 
                             # Sort marked_peaks and synchronize other lists
-                            sorted_data = sorted(zip(self.marked_peaks, self.points, self.texts, self.decay_calculated), key=lambda x: x[0][0])
-                            self.marked_peaks, self.points, self.texts, self.decay_calculated = map(list, zip(*sorted_data))
+                            sorted_data = sorted(zip(self.marked_peaks, self.points, self.texts, self.decay_calculated, self.rise_calculated), key=lambda x: x[0][0])
+                            self.marked_peaks, self.points, self.texts, self.decay_calculated, self.rise_calculated = map(list, zip(*sorted_data))
 
                             self.canvas.draw()
                     else:
@@ -1048,11 +1089,20 @@ class App(customtkinter.CTk):
                         if decay_line in self.decay_lines:
                             self.decay_lines.remove(decay_line)
                         decay_line.remove()
+                    # Remove corresponding rise line if exists
+                    if peak in self.rise_line_map:
+                        rise_line = self.rise_line_map.pop(peak)
+                        if rise_line in self.rise_lines:
+                            self.rise_lines.remove(rise_line)
+                        rise_line.remove()
+                    if peak in self.rise_times:
+                        del self.rise_times[peak]
                     if peak in self.tau_values:
                         del self.tau_values[peak]
                     if peak in self.amplitudes:
                         del self.amplitudes[peak]
                     self.decay_calculated.pop(nearest_idx)
+                    self.rise_calculated.pop(nearest_idx)
                     self.canvas.draw()
 
     def next_page(self):
