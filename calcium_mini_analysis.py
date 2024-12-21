@@ -94,6 +94,70 @@ class LoadFileDialog(customtkinter.CTkToplevel):
         self.grab_release()
         self.destroy()
 
+class PartitionEvokedDialog(customtkinter.CTkToplevel):
+    def __init__(self, parent, default_peak_num="", default_interval_size="", default_offset=""):
+        super().__init__(parent)
+        self.title("Partition Evoked Parameters")
+        self.geometry("200x350")
+
+        parent_x = parent.winfo_x()
+        parent_y = parent.winfo_y()
+        offset_x = 100  # Horizontal offset from parent window
+        offset_y = 100  # Vertical offset from parent window
+        self.geometry(f"+{parent_x + offset_x}+{parent_y + offset_y}")
+
+        # Center the dialog over the parent window
+        self.transient(parent)
+        self.grab_set()
+
+        self.peak_num = None
+        self.interval_size = None
+        self.offset = None
+        self.user_cancelled = False
+
+        self.label_peak_num = customtkinter.CTkLabel(self, text="Peak Num:")
+        self.label_peak_num.pack(pady=(20, 0), padx=20)
+        self.entry_peak_num = customtkinter.CTkEntry(self)
+        self.entry_peak_num.insert(0, default_peak_num)  # Pre-fill with default value
+        self.entry_peak_num.pack(pady=(5, 10), padx=20, fill="x")
+
+        self.label_interval_size = customtkinter.CTkLabel(self, text="Interval Size:")
+        self.label_interval_size.pack(padx=20)
+        self.entry_interval_size = customtkinter.CTkEntry(self)
+        self.entry_interval_size.insert(0, default_interval_size)  # Pre-fill with default value
+        self.entry_interval_size.pack(pady=(5, 10), padx=20, fill="x")
+
+        self.label_offset = customtkinter.CTkLabel(self, text="Offset:")
+        self.label_offset.pack(padx=20)
+        self.entry_offset = customtkinter.CTkEntry(self)
+        self.entry_offset.insert(0, default_offset)  # Pre-fill with default value
+        self.entry_offset.pack(pady=(5, 10), padx=20, fill="x")
+
+        self.calculate_button = customtkinter.CTkButton(self, text="Partition", command=self.on_calculate)
+        self.calculate_button.pack(pady=(10, 20))
+
+        # Handle window close event
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
+
+        # Allow resizing
+        self.resizable(True, True)
+
+    def on_calculate(self):
+        self.peak_num = self.entry_peak_num.get()
+        self.interval_size = self.entry_interval_size.get()
+        self.offset = self.entry_offset.get()
+        if not self.peak_num or not self.interval_size or not self.offset:
+            messagebox.showwarning(title="Warning", message="All fields must be filled out.", parent=self)
+            return
+        self.grab_release()
+        self.destroy()
+
+    def on_close(self):
+        # When the user closes the dialog without confirming
+        self.user_cancelled = True
+        self.grab_release()
+        self.destroy()
+
 class BaselineDialog(customtkinter.CTkToplevel):
     def __init__(self, parent, default_first_start="", default_first_end="",
                  default_second_start="", default_second_end=""):
@@ -277,8 +341,8 @@ class App(customtkinter.CTk):
         if os.path.exists(self.icon_path):
             self.iconbitmap(self.icon_path)
 
-        self.title("Calcium Mini Analysis by Lin - Dickman Lab")
-        self.geometry(f"{1200}x{700}")
+        self.title("CaFire by Lin - Dickman Lab")
+        self.geometry(f"{1200}x{800}")
 
         # Configure grid layout
         self.grid_columnconfigure(0, weight=0)  # Left sidebar
@@ -396,6 +460,16 @@ class App(customtkinter.CTk):
         separator.grid(row=row_counter, column=0, sticky="we", padx=10)
         row_counter += 1
 
+        # Partition button
+        self.partition_button = customtkinter.CTkButton(self.left_sidebar_frame, text="Partition Evoked Data",
+                                                     command=self.partition_evoked)
+        self.partition_button.grid(row=row_counter, column=0, padx=10, pady=15, sticky="we")
+        row_counter += 1
+
+        separator = customtkinter.CTkFrame(self.left_sidebar_frame, height=2, width=width, fg_color="#DDDDDD")
+        separator.grid(row=row_counter, column=0, sticky="we", padx=10)
+        row_counter += 1
+
         # Calculate amplitude button
         self.calculate_amplitude_button = customtkinter.CTkButton(self.left_sidebar_frame, text="Calculate Amplitude",
                                                                   command=self.calculate_amplitude)
@@ -406,10 +480,26 @@ class App(customtkinter.CTk):
         separator.grid(row=row_counter, column=0, sticky="we", padx=10)
         row_counter += 1
 
+        # Peak threshold label and entry
+        self.peak_to_valley_ratio_label = customtkinter.CTkLabel(
+            self.left_sidebar_frame,
+            text="Peak-to-Valley Ratio",
+            text_color="#b5b5b5",
+            anchor="w"
+        )
+        self.peak_to_valley_ratio_label.grid(row=row_counter, column=0, padx=10, pady=5, sticky="w")
+
+        self.peak_to_valley_ratio_entry = customtkinter.CTkEntry(
+            self.left_sidebar_frame, 
+            width=50
+        )
+        self.peak_to_valley_ratio_entry.grid(row=row_counter, column=0, padx=(110, 10), pady=5, sticky="e")
+        row_counter += 1
+
         # Calculate rise button
         self.calculate_rise_button = customtkinter.CTkButton(self.left_sidebar_frame, text="Calculate Rise",
                                                                   command=self.calculate_rise)
-        self.calculate_rise_button.grid(row=row_counter, column=0, padx=10, pady=15, sticky="we")
+        self.calculate_rise_button.grid(row=row_counter, column=0, padx=10, pady=(5, 15), sticky="we")
         row_counter += 1
 
         separator = customtkinter.CTkFrame(self.left_sidebar_frame, height=2, width=width, fg_color="#DDDDDD")
@@ -436,7 +526,7 @@ class App(customtkinter.CTk):
 
         # Version label
         self.left_sidebar_frame.grid_rowconfigure(row_counter, weight=1)  # Push version label to bottom
-        self.version_label = customtkinter.CTkLabel(self.left_sidebar_frame, text="v.1.0.2")
+        self.version_label = customtkinter.CTkLabel(self.left_sidebar_frame, text="v.1.0.3")
         self.version_label.grid(row=row_counter, column=0, padx=10, pady=10, sticky="se")
         
         # Create a frame for the canvas and overlay widgets
@@ -539,6 +629,8 @@ class App(customtkinter.CTk):
         self.amplitudes = {} 
         self.baseline_line = None
         self.baseline_values = None
+        self.partition_lines = []
+        self.partition_labels = []
 
         # Store last parameters
         self.last_sheet_name = ""
@@ -551,6 +643,9 @@ class App(customtkinter.CTk):
         self.last_first_interval_end = ""
         self.last_second_interval_start = ""
         self.last_second_interval_end = ""
+        self.last_peak_num = "" 
+        self.last_interval_size = ""
+        self.last_offset = ""
 
         self.canvas.mpl_connect('button_press_event', self.onclick)
     
@@ -822,23 +917,22 @@ class App(customtkinter.CTk):
         #     self.amplitudes[peak] = amplitude
 
         messagebox.showinfo(title="Success", message="Amplitudes successfully calculated for all peaks.")
-
+    
     def export_stats(self):
         if self.time is None or not self.marked_peaks:
             messagebox.showwarning(title="Warning", message="No stats to export.")
             return
 
-        # Extract peak data (both automatically and manually marked)
+        # 提取峰值数据
         peak_times = [peak[0] for peak in self.marked_peaks]
         peak_values = [peak[1] for peak in self.marked_peaks]
         amplitude_values = [self.amplitudes.get(peak, None) for peak in self.marked_peaks]
         tau_values = [self.tau_values.get(peak, None) for peak in self.marked_peaks]
-        rise_times = [self.rise_times.get(peak, None) for peak in self.marked_peaks] 
+        rise_times = [self.rise_times.get(peak, None) for peak in self.marked_peaks]
 
-        # Create a DataFrame and sort by Time
+        # 创建 DataFrame 并按时间排序
         df_export = pd.DataFrame({
             "Time": peak_times,
-            # "Peaks": peak_values,
             "Amplitude": peak_values,
             "Rise Time": rise_times,
             "Decay Time": tau_values
@@ -846,12 +940,129 @@ class App(customtkinter.CTk):
         df_export = df_export.sort_values(by="Time")
 
         export_path = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel files", "*.xlsx")])
-        if export_path:
-            try:
+        if not export_path:
+            return
+
+        try:
+            # 检查分区线条件
+            if len(self.partition_lines) >= 2 and len(self.partition_lines) % 2 == 0:
+                # 计算划分区间数据
+                intervals = []
+                interval_stats = []
+                for i in range(0, len(self.partition_lines), 2):
+                    start = self.partition_lines[i].get_xdata()[0]
+                    end = self.partition_lines[i + 1].get_xdata()[0]
+                    if self.time.iloc[0] <= start <= self.time.iloc[-1] and self.time.iloc[0] <= end <= self.time.iloc[-1]:
+                        interval_data = self.df_f[(self.time >= start) & (self.time <= end)].values.flatten()
+                        intervals.append(interval_data)
+
+                        # 提取每个区间的统计数据
+                        interval_peaks = [(t, a, r, d) for t, a, r, d in zip(peak_times, peak_values, rise_times, tau_values) if start <= t <= end]
+                        interval_stats.append(interval_peaks)
+
+                # 确保所有区间数据长度一致（填充 NaN）
+                max_length = max(len(stats) for stats in interval_stats)
+                detailed_rows = []
+                for idx, stats in enumerate(interval_stats):
+                    row = [f"{idx + 1}"]
+                    row.extend([peak[1] for peak in stats] + [float("nan")] * (max_length - len(stats)))  # Amplitudes
+                    row.extend([peak[2] for peak in stats] + [float("nan")] * (max_length - len(stats)))  # Rise Times
+                    row.extend([peak[3] for peak in stats] + [float("nan")] * (max_length - len(stats)))  # Decay Times
+                    detailed_rows.append(row)
+
+                # 创建详细数据 DataFrame
+                detailed_columns = ["Interval Number"]
+                detailed_columns.extend([f"Amplitude_{i + 1}" for i in range(max_length)])
+                detailed_columns.extend([f"Rise Time (𝜏)_{i + 1}" for i in range(max_length)])
+                detailed_columns.extend([f"Decay Time (𝜏)_{i + 1}" for i in range(max_length)])
+                df_detailed = pd.DataFrame(detailed_rows, columns=detailed_columns)
+                detailed_export_path = export_path
+                df_detailed.to_excel(detailed_export_path, index=False, engine='openpyxl')
+
+                # 计算区间数据
+                padded_intervals = [list(interval) + [float("nan")] * (max_length - len(interval)) for interval in intervals]
+                average_trace = [sum(filter(lambda x: not pd.isna(x), values)) / len(values) for values in zip(*padded_intervals)]
+                padded_intervals.append(average_trace)
+
+                # 保存区间数据文件
+                interval_columns = [f"Interval_{i + 1}" for i in range(len(intervals))] + ["Average Trace"]
+                df_intervals = pd.DataFrame(padded_intervals).T
+                df_intervals.columns = interval_columns
+                interval_export_path = export_path.replace(".xlsx", "_intervals.xlsx")
+                df_intervals.to_excel(interval_export_path, index=False, engine='openpyxl')
+
+                messagebox.showinfo(title="Success", message=f"Stats successfully exported to:\n{detailed_export_path}\n{interval_export_path}")
+            else:
+                # 仅保存统计数据文件
                 df_export.to_excel(export_path, index=False, engine='openpyxl')
-                messagebox.showinfo(title="Success", message="Stats successfully exported.")
-            except Exception as e:
-                messagebox.showerror(title="Error", message=f"Error exporting stats: {e}")
+                messagebox.showinfo(title="Success", message=f"Stats successfully exported to:\n{export_path}")
+
+        except Exception as e:
+            messagebox.showerror(title="Error", message=f"Error exporting stats: {e}")
+
+    def partition_evoked(self):
+        if self.time is None or self.df_f is None:
+            messagebox.showwarning(title="Warning", message="No data loaded.")
+            return
+
+        # Show the PartitionEvokedDialog
+        partition_dialog = PartitionEvokedDialog(
+            self,
+            default_peak_num=self.last_peak_num,
+            default_interval_size=self.last_interval_size,
+            default_offset=self.last_offset
+        )
+        self.wait_window(partition_dialog)
+
+        # Check if the user cancelled the operation
+        if partition_dialog.user_cancelled:
+            return
+
+        # Get user input
+        try:
+            peak_num = int(partition_dialog.peak_num)
+            interval_size = int(partition_dialog.interval_size)
+            offset = int(partition_dialog.offset)
+        except (ValueError, TypeError):
+            messagebox.showwarning(title="Warning", message="Invalid input values.")
+            return
+
+        # Store last inputs
+        self.last_peak_num = partition_dialog.peak_num
+        self.last_interval_size = partition_dialog.interval_size
+        self.last_offset = partition_dialog.offset
+
+        # 清空之前的分割线和标注
+        for line in self.partition_lines:
+            line.remove()  # 从图中移除分割线
+        for label in self.partition_labels:
+            label.remove()  # 从图中移除标注
+        self.partition_lines.clear()
+        self.partition_labels.clear()
+
+        # 绘制新的分割线和标注
+        for i in range(0, len(self.marked_peaks), peak_num):
+            # Extract the time (first element of the tuple)
+            peak_time = self.marked_peaks[i][0]  # First element is the time
+
+            start_peak = peak_time - offset
+            end_peak = start_peak + interval_size
+
+            if start_peak >= self.time.iloc[0]:
+                line = self.ax.axvline(x=start_peak, color='g', linestyle='--', label='Partition Start')
+                label = self.ax.text(start_peak, self.ax.get_ylim()[1] * 0.98, f'Start {i//peak_num + 1}',
+                                    color='g', verticalalignment='top', horizontalalignment='center')
+                self.partition_lines.append(line)
+                self.partition_labels.append(label)
+
+            if end_peak <= self.time.iloc[-1]:
+                line = self.ax.axvline(x=end_peak, color='r', linestyle='--', label='Partition End')
+                label = self.ax.text(end_peak, self.ax.get_ylim()[1] * 0.98, f'End {i//peak_num + 1}',
+                                    color='r', verticalalignment='top', horizontalalignment='center')
+                self.partition_lines.append(line)
+                self.partition_labels.append(label)
+
+        self.canvas.draw()
 
     def calculate_decay(self):
         if not self.marked_peaks:
@@ -915,6 +1126,10 @@ class App(customtkinter.CTk):
         if self.time is None or self.df_f is None:
             messagebox.showwarning(title="Warning", message="No data loaded.")
             return
+        
+        if not self.marked_peaks:
+            messagebox.showwarning(title="Warning", message="No peaks available for rise calculation.")
+            return
 
         # Sort marked peaks by time
         self.marked_peaks = sorted(self.marked_peaks, key=lambda peak: peak[0])
@@ -938,7 +1153,12 @@ class App(customtkinter.CTk):
                 rise_start_index = 0  # If no local minimum is found, set it as the starting point of the data
 
             # Check if the identified rise_start_index meets the conditions; if not, continue searching
-            while self.df_f[rise_start_index] >= 0.37 * peak_value and rise_start_index > 0:
+            
+            try:
+                peak_to_valley_ratio = float(self.peak_to_valley_ratio_entry.get())
+            except ValueError:
+                peak_to_valley_ratio = 0.47
+            while self.df_f[rise_start_index] >= peak_to_valley_ratio * peak_value and rise_start_index > 0:
                 for j in range(rise_start_index - 1, 0, -1):
                     if self.df_f[j] < self.df_f[j - 1] and self.df_f[j] < self.df_f[j + 1]:
                         rise_start_index = j
@@ -980,22 +1200,35 @@ class App(customtkinter.CTk):
         self.marked_peaks.clear()
         self.decay_calculated.clear()
         self.rise_calculated.clear()
+
+        for line in self.partition_lines:
+            line.remove()
+        self.partition_lines.clear()
+
+        for label in self.partition_labels:
+            label.remove()
+        self.partition_labels.clear()
+
         if clear:
             for line in self.decay_lines:
                 line.remove()
             self.decay_lines.clear()
             self.decay_line_map.clear()
+
             for line in self.rise_lines:
                 line.remove()
             self.rise_lines.clear()
             self.rise_line_map.clear()
+
             self.rise_times.clear()
             self.tau_values.clear()
             self.amplitudes.clear()
+
         if self.baseline_line is not None:
             self.baseline_line.remove()
             self.baseline_line = None
-        self.canvas.draw()
+
+        self.canvas.draw() # refresh the canvas
 
     @staticmethod
     def decay_function(t, tau, y0):
@@ -1142,15 +1375,27 @@ class App(customtkinter.CTk):
     def update_annotations(self):
         xlims = self.ax.get_xlim()
         ylims = self.ax.get_ylim()
+
         for point, text in zip(self.points, self.texts):
             x, y = point.get_xdata()[0], point.get_ydata()[0]
-            if xlims[0] <= x <= xlims[1] and ylims[0] <= y <= ylims[1]: # Check if the point is within the current view limits
+            if xlims[0] <= x <= xlims[1] and ylims[0] <= y <= ylims[1]:  # Check if the point is within the current view limits
                 point.set_visible(True)
                 text.set_visible(True)
             else:
                 point.set_visible(False)
                 text.set_visible(False)
+
+        for line, label in zip(self.partition_lines, self.partition_labels):
+            x = line.get_xdata()[0]
+            if xlims[0] <= x <= xlims[1]:
+                line.set_visible(True)
+                label.set_visible(True)
+            else:
+                line.set_visible(False)
+                label.set_visible(False)
+
         self.canvas.draw()
+
 
 if __name__ == "__main__":
     app = App()
