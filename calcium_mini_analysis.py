@@ -923,14 +923,12 @@ class App(customtkinter.CTk):
             messagebox.showwarning(title="Warning", message="No stats to export.")
             return
 
-        # 提取峰值数据
         peak_times = [peak[0] for peak in self.marked_peaks]
         peak_values = [peak[1] for peak in self.marked_peaks]
         amplitude_values = [self.amplitudes.get(peak, None) for peak in self.marked_peaks]
         tau_values = [self.tau_values.get(peak, None) for peak in self.marked_peaks]
         rise_times = [self.rise_times.get(peak, None) for peak in self.marked_peaks]
 
-        # 创建 DataFrame 并按时间排序
         df_export = pd.DataFrame({
             "Time": peak_times,
             "Amplitude": peak_values,
@@ -944,9 +942,8 @@ class App(customtkinter.CTk):
             return
 
         try:
-            # 检查分区线条件
+            # Check if the data has been partitioned
             if len(self.partition_lines) >= 2 and len(self.partition_lines) % 2 == 0:
-                # 计算划分区间数据
                 intervals = []
                 interval_stats = []
                 for i in range(0, len(self.partition_lines), 2):
@@ -956,11 +953,11 @@ class App(customtkinter.CTk):
                         interval_data = self.df_f[(self.time >= start) & (self.time <= end)].values.flatten()
                         intervals.append(interval_data)
 
-                        # 提取每个区间的统计数据
+                        # Extract statistical data for each interval
                         interval_peaks = [(t, a, r, d) for t, a, r, d in zip(peak_times, peak_values, rise_times, tau_values) if start <= t <= end]
                         interval_stats.append(interval_peaks)
 
-                # 确保所有区间数据长度一致（填充 NaN）
+                # Ensure all interval data have consistent lengths (pad with NaN)
                 max_length = max(len(stats) for stats in interval_stats)
                 detailed_rows = []
                 for idx, stats in enumerate(interval_stats):
@@ -970,7 +967,6 @@ class App(customtkinter.CTk):
                     row.extend([peak[3] for peak in stats] + [float("nan")] * (max_length - len(stats)))  # Decay Times
                     detailed_rows.append(row)
 
-                # 创建详细数据 DataFrame
                 detailed_columns = ["Interval Number"]
                 detailed_columns.extend([f"Amplitude_{i + 1}" for i in range(max_length)])
                 detailed_columns.extend([f"Rise Time (𝜏)_{i + 1}" for i in range(max_length)])
@@ -979,12 +975,10 @@ class App(customtkinter.CTk):
                 detailed_export_path = export_path
                 df_detailed.to_excel(detailed_export_path, index=False, engine='openpyxl')
 
-                # 计算区间数据
                 padded_intervals = [list(interval) + [float("nan")] * (max_length - len(interval)) for interval in intervals]
                 average_trace = [sum(filter(lambda x: not pd.isna(x), values)) / len(values) for values in zip(*padded_intervals)]
                 padded_intervals.append(average_trace)
 
-                # 保存区间数据文件
                 interval_columns = [f"Interval_{i + 1}" for i in range(len(intervals))] + ["Average Trace"]
                 df_intervals = pd.DataFrame(padded_intervals).T
                 df_intervals.columns = interval_columns
@@ -993,7 +987,7 @@ class App(customtkinter.CTk):
 
                 messagebox.showinfo(title="Success", message=f"Stats successfully exported to:\n{detailed_export_path}\n{interval_export_path}")
             else:
-                # 仅保存统计数据文件
+                # Save only the statistical data file
                 df_export.to_excel(export_path, index=False, engine='openpyxl')
                 messagebox.showinfo(title="Success", message=f"Stats successfully exported to:\n{export_path}")
 
@@ -1032,35 +1026,41 @@ class App(customtkinter.CTk):
         self.last_interval_size = partition_dialog.interval_size
         self.last_offset = partition_dialog.offset
 
-        # 清空之前的分割线和标注
+        # Clear previous segmentation lines and annotations
         for line in self.partition_lines:
-            line.remove()  # 从图中移除分割线
+            line.remove() 
         for label in self.partition_labels:
-            label.remove()  # 从图中移除标注
+            label.remove() 
         self.partition_lines.clear()
         self.partition_labels.clear()
 
-        # 绘制新的分割线和标注
+        # Draw segmentation lines and annotations
         for i in range(0, len(self.marked_peaks), peak_num):
-            # Extract the time (first element of the tuple)
             peak_time = self.marked_peaks[i][0]  # First element is the time
-
             start_peak = peak_time - offset
             end_peak = start_peak + interval_size
 
             if start_peak >= self.time.iloc[0]:
-                line = self.ax.axvline(x=start_peak, color='g', linestyle='--', label='Partition Start')
-                label = self.ax.text(start_peak, self.ax.get_ylim()[1] * 0.98, f'Start {i//peak_num + 1}',
-                                    color='g', verticalalignment='top', horizontalalignment='center')
+                line = self.ax.axvline(x=start_peak, color='g', linestyle='--')
+                label = self.ax.text(start_peak, self.ax.get_ylim()[1] * 1.01, "Start {0}\n(x={1})".format(i // peak_num + 1, start_peak), color='g')
                 self.partition_lines.append(line)
                 self.partition_labels.append(label)
 
             if end_peak <= self.time.iloc[-1]:
-                line = self.ax.axvline(x=end_peak, color='r', linestyle='--', label='Partition End')
-                label = self.ax.text(end_peak, self.ax.get_ylim()[1] * 0.98, f'End {i//peak_num + 1}',
-                                    color='r', verticalalignment='top', horizontalalignment='center')
+                line = self.ax.axvline(x=end_peak, color='r', linestyle='--')
+                label = self.ax.text(end_peak, self.ax.get_ylim()[1] * 1.01, "End {0}\n(x={1})".format(i // peak_num + 1, end_peak), color='r')
                 self.partition_lines.append(line)
                 self.partition_labels.append(label)
+        
+        xlims = self.ax.get_xlim()
+        for line, label in zip(self.partition_lines, self.partition_labels):
+            x = line.get_xdata()[0]
+            if xlims[0] <= x <= xlims[1]:
+                line.set_visible(True)
+                label.set_visible(True)
+            else:
+                line.set_visible(False)
+                label.set_visible(False)
 
         self.canvas.draw()
 
