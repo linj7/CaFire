@@ -342,7 +342,7 @@ class App(customtkinter.CTk):
             self.iconbitmap(self.icon_path)
 
         self.title("CaFire by Lin - Dickman Lab")
-        self.geometry(f"{1200}x{800}")
+        self.geometry(f"{1200}x{900}")
 
         # Configure grid layout
         self.grid_columnconfigure(0, weight=0)  # Left sidebar
@@ -358,7 +358,28 @@ class App(customtkinter.CTk):
 
         # Load file button
         self.load_button = customtkinter.CTkButton(self.left_sidebar_frame, text="Load File", command=self.load_file)
-        self.load_button.grid(row=row_counter, column=0, padx=10, pady=(20, 15), sticky="we")
+        self.load_button.grid(row=row_counter, column=0, padx=10, pady=(20, 10), sticky="we")
+        row_counter += 1
+
+        # Create a frame with a custom background color
+        evoked_frame = customtkinter.CTkFrame(self.left_sidebar_frame, fg_color="#ebebeb")  # 设置背景颜色为浅灰色
+        evoked_frame.grid(row=row_counter, column=0, padx=10, pady=(0, 15), sticky="w")  # Position the frame
+
+        # Add "Evoked" label on the left
+        self.evoked_label = customtkinter.CTkLabel(evoked_frame, text="Evoked")
+        self.evoked_label.pack(side="left", padx=(0, 5))  # Add padding between label and checkbox
+
+        # Add checkbox on the right of "Evoked"
+        self.evoked_var = customtkinter.StringVar(value="off")  # Variable to store the checkbox state
+        self.evoked_checkbox = customtkinter.CTkCheckBox(
+            evoked_frame,
+            text="",  # No text for checkbox since the label is used
+            variable=self.evoked_var,
+            onvalue="on",
+            offvalue="off",
+            command=self.handle_evoked_checkbox_change
+        )
+        self.evoked_checkbox.pack(side="left", padx=(0, 5))  # Add padding between checkbox and next element
         row_counter += 1
 
         separator = customtkinter.CTkFrame(self.left_sidebar_frame, height=2, width=width, fg_color="#DDDDDD")
@@ -453,7 +474,12 @@ class App(customtkinter.CTk):
         # Calculate baseline button
         self.calculate_baseline_button = customtkinter.CTkButton(self.left_sidebar_frame, text="Calculate Baseline",
                                                                  command=self.calculate_baseline)
-        self.calculate_baseline_button.grid(row=row_counter, column=0, padx=10, pady=15, sticky="we")
+        self.calculate_baseline_button.grid(row=row_counter, column=0, padx=10, pady=(15, 5), sticky="we")
+        row_counter += 1
+
+        self.calculate_DF_F_button = customtkinter.CTkButton(self.left_sidebar_frame, text="Convert to DF/F",
+                                                                 command=self.calculate_DF_F, state="disabled")
+        self.calculate_DF_F_button.grid(row=row_counter, column=0, padx=10, pady=(5, 15), sticky="we")
         row_counter += 1
 
         separator = customtkinter.CTkFrame(self.left_sidebar_frame, height=2, width=width, fg_color="#DDDDDD")
@@ -462,7 +488,7 @@ class App(customtkinter.CTk):
 
         # Partition button
         self.partition_button = customtkinter.CTkButton(self.left_sidebar_frame, text="Partition Evoked Data",
-                                                     command=self.partition_evoked)
+                                                     command=self.partition_evoked, state="disabled")
         self.partition_button.grid(row=row_counter, column=0, padx=10, pady=15, sticky="we")
         row_counter += 1
 
@@ -526,7 +552,7 @@ class App(customtkinter.CTk):
 
         # Version label
         self.left_sidebar_frame.grid_rowconfigure(row_counter, weight=1)  # Push version label to bottom
-        self.version_label = customtkinter.CTkLabel(self.left_sidebar_frame, text="v.1.0.3")
+        self.version_label = customtkinter.CTkLabel(self.left_sidebar_frame, text="v1.3")
         self.version_label.grid(row=row_counter, column=0, padx=10, pady=10, sticky="se")
         
         # Create a frame for the canvas and overlay widgets
@@ -546,37 +572,63 @@ class App(customtkinter.CTk):
         zoom_out_image = load_svg_image('assets/zoom_out.svg', width=24, height=24)
         prev_page_image = load_svg_image('assets/prev_page.svg', width=24, height=24)
         next_page_image = load_svg_image('assets/next_page.svg', width=24, height=24)
+        up_page_image = prev_page_image.rotate(-90, expand=True)
+        down_page_image = next_page_image.rotate(-90, expand=True)
 
         # Create CTkImage
         self.zoom_in_image_normal = customtkinter.CTkImage(light_image=zoom_in_image, size=(24, 24))
         self.zoom_out_image_normal = customtkinter.CTkImage(light_image=zoom_out_image, size=(24, 24))
         self.prev_page_image_normal = customtkinter.CTkImage(light_image=prev_page_image, size=(24, 24))
         self.next_page_image_normal = customtkinter.CTkImage(light_image=next_page_image, size=(24, 24))
+        self.up_page_image_normal = customtkinter.CTkImage(light_image=up_page_image, size=(24, 24))
+        self.down_page_image_normal = customtkinter.CTkImage(light_image=down_page_image, size=(24, 24))
 
         button_spacing = 40  # Vertical spacing between buttons
         center_offset = 20   # Center offset for pairing buttons
 
         # Zoom in label
-        self.zoom_in_label = customtkinter.CTkLabel(
+        self.zoom_in_x_label = customtkinter.CTkLabel(
             self.canvas_widget,
             text="",
             image=self.zoom_in_image_normal,
             width=24,
             height=24
         )
-        self.zoom_in_label.place(relx=1.0, rely=0.5, x=-25, y=-center_offset - button_spacing, anchor='e')
-        self.zoom_in_label.configure(cursor="hand2")
+        self.zoom_in_x_label.place(relx=0.5, rely=1.0, x=-40, y=-center_offset - 20, anchor='e')
+        self.zoom_in_x_label.configure(cursor="hand2")
 
         # Zoom out label
-        self.zoom_out_label = customtkinter.CTkLabel(
+        self.zoom_out_x_label = customtkinter.CTkLabel(
             self.canvas_widget,
             text="",
             image=self.zoom_out_image_normal,
             width=24,
             height=24
         )
-        self.zoom_out_label.place(relx=1.0, rely=0.5, x=-25, y=-center_offset, anchor='e')
-        self.zoom_out_label.configure(cursor="hand2")
+        self.zoom_out_x_label.place(relx=0.5, rely=1.0, x=-5, y=-center_offset - 20, anchor='e')
+        self.zoom_out_x_label.configure(cursor="hand2")
+
+        # Zoom in label
+        self.zoom_in_y_label = customtkinter.CTkLabel(
+            self.canvas_widget,
+            text="",
+            image=self.zoom_in_image_normal,
+            width=24,
+            height=24
+        )
+        self.zoom_in_y_label.place(relx=1.0, rely=0.5, x=-25, y=-center_offset - button_spacing, anchor='e')
+        self.zoom_in_y_label.configure(cursor="hand2")
+
+        # Zoom out label
+        self.zoom_out_y_label = customtkinter.CTkLabel(
+            self.canvas_widget,
+            text="",
+            image=self.zoom_out_image_normal,
+            width=24,
+            height=24
+        )
+        self.zoom_out_y_label.place(relx=1.0, rely=0.5, x=-25, y=-center_offset, anchor='e')
+        self.zoom_out_y_label.configure(cursor="hand2")
 
         # Previous page
         self.prev_page_label = customtkinter.CTkLabel(
@@ -586,7 +638,7 @@ class App(customtkinter.CTk):
             width=24,
             height=24
         )
-        self.prev_page_label.place(relx=1.0, rely=0.5, x=-25, y=center_offset, anchor='e')
+        self.prev_page_label.place(relx=0.5, rely=1.0, x=60, y=-center_offset - 20, anchor='e')
         self.prev_page_label.configure(cursor="hand2")
 
         # Next page
@@ -597,21 +649,55 @@ class App(customtkinter.CTk):
             width=24,
             height=24
         )
-        self.next_page_label.place(relx=1.0, rely=0.5, x=-23, y=center_offset + button_spacing, anchor='e')
+        self.next_page_label.place(relx=0.5, rely=1.0, x=90, y=-center_offset - 20, anchor='e')
         self.next_page_label.configure(cursor="hand2")
 
+        # Up
+        self.up_page_label = customtkinter.CTkLabel(
+            self.canvas_widget,
+            text="",
+            image=self.up_page_image_normal,
+            width=24,
+            height=24
+        )
+        self.up_page_label.place(relx=1.0, rely=0.5, x=-25, y=center_offset, anchor='e')
+        self.up_page_label.configure(cursor="hand2")
 
-        self.zoom_in_label.bind("<Button-1>", lambda event: self.on_button_press(self.zoom_in_label))
-        self.zoom_in_label.bind("<ButtonRelease-1>", lambda event: self.on_button_release(self.zoom_in_label, self.zoom_in))
+        # Down
+        self.down_page_label = customtkinter.CTkLabel(
+            self.canvas_widget,
+            text="",
+            image=self.down_page_image_normal,
+            width=24,
+            height=24
+        )
+        self.down_page_label.place(relx=1.0, rely=0.5, x=-25, y=center_offset + button_spacing, anchor='e')
+        self.down_page_label.configure(cursor="hand2")
 
-        self.zoom_out_label.bind("<Button-1>", lambda event: self.on_button_press(self.zoom_out_label))
-        self.zoom_out_label.bind("<ButtonRelease-1>", lambda event: self.on_button_release(self.zoom_out_label, self.zoom_out))
+
+        self.zoom_in_x_label.bind("<Button-1>", lambda event: self.on_button_press(self.zoom_in_x_label))
+        self.zoom_in_x_label.bind("<ButtonRelease-1>", lambda event: self.on_button_release(self.zoom_in_x_label, self.zoom_in_x))
+
+        self.zoom_out_x_label.bind("<Button-1>", lambda event: self.on_button_press(self.zoom_out_x_label))
+        self.zoom_out_x_label.bind("<ButtonRelease-1>", lambda event: self.on_button_release(self.zoom_out_x_label, self.zoom_out_x))
+
+        self.zoom_in_y_label.bind("<Button-1>", lambda event: self.on_button_press(self.zoom_in_y_label))
+        self.zoom_in_y_label.bind("<ButtonRelease-1>", lambda event: self.on_button_release(self.zoom_in_y_label, self.zoom_in_y))
+
+        self.zoom_out_y_label.bind("<Button-1>", lambda event: self.on_button_press(self.zoom_out_y_label))
+        self.zoom_out_y_label.bind("<ButtonRelease-1>", lambda event: self.on_button_release(self.zoom_out_y_label, self.zoom_out_y))
 
         self.prev_page_label.bind("<Button-1>", lambda event: self.on_button_press(self.prev_page_label))
         self.prev_page_label.bind("<ButtonRelease-1>", lambda event: self.on_button_release(self.prev_page_label, self.prev_page))
 
         self.next_page_label.bind("<Button-1>", lambda event: self.on_button_press(self.next_page_label))
         self.next_page_label.bind("<ButtonRelease-1>", lambda event: self.on_button_release(self.next_page_label, self.next_page))
+
+        self.up_page_label.bind("<Button-1>", lambda event: self.on_button_press(self.up_page_label))
+        self.up_page_label.bind("<ButtonRelease-1>", lambda event: self.on_button_release(self.up_page_label, self.move_up))
+
+        self.down_page_label.bind("<Button-1>", lambda event: self.on_button_press(self.down_page_label))
+        self.down_page_label.bind("<ButtonRelease-1>", lambda event: self.on_button_release(self.down_page_label, self.move_down))
 
         self.time = None
         self.df_f = None
@@ -631,6 +717,7 @@ class App(customtkinter.CTk):
         self.baseline_values = None
         self.partition_lines = []
         self.partition_labels = []
+        self.peak_num = None
 
         # Store last parameters
         self.last_sheet_name = ""
@@ -664,6 +751,7 @@ class App(customtkinter.CTk):
         func()  
 
     def load_file(self):
+        
         # Create and show the input dialog with last used inputs
         load_file_dialog = LoadFileDialog(
             self,
@@ -700,9 +788,13 @@ class App(customtkinter.CTk):
 
         # Clear previous plot
         self.clear_plot()
+        if self.df_f is not None:
+            self.evoked_var.set("off")
+            self.peak_num = None
 
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl')
+            df.columns = df.columns.map(str)
             self.time = df[x_col]
             self.df_f = df[y_col]
         except Exception as e:
@@ -713,8 +805,62 @@ class App(customtkinter.CTk):
         self.ax.plot(self.time, self.df_f, color='blue')
         self.ax.set_ylim(np.min(self.df_f), np.max(self.df_f))
         self.ax.grid(True)
+        
         self.canvas.draw()
 
+    def handle_evoked_checkbox_change(self):
+        if self.evoked_var.get() == "on":
+            # 弹出对话框并获取用户输入
+            dialog = customtkinter.CTkToplevel(self)
+            dialog.title("Enter Peak Num")
+            dialog.geometry("300x150")  # 设置对话框大小
+
+            # 计算主窗口的位置
+            self.update_idletasks()  # 更新窗口尺寸信息
+            main_x = self.winfo_x()
+            main_y = self.winfo_y()
+            main_width = self.winfo_width()
+            main_height = self.winfo_height()
+
+            # 计算弹窗的居中位置
+            dialog_x = main_x + (main_width - 300) // 2
+            dialog_y = main_y + (main_height - 150) // 2
+            dialog.geometry(f"300x150+{dialog_x}+{dialog_y}")  # 设置弹窗的位置
+
+            # 添加说明标签
+            label = customtkinter.CTkLabel(dialog, text="Enter the peak num in each period:")
+            label.pack(pady=10)
+
+            # 添加输入框
+            entry = customtkinter.CTkEntry(dialog, width=200)
+            entry.pack(pady=5)
+
+            # 定义保存输入的函数
+            def save_peak_num():
+                try:
+                    # 获取用户输入并保存到全局变量
+                    self.peak_num = int(entry.get())  # 转换为整数并保存
+                    dialog.destroy()  # 关闭对话框
+
+                    # 启用 Partition 按钮
+                    self.partition_button.configure(state="normal")
+                except ValueError:
+                    messagebox.showwarning(title="Warning", message="Please enter a valid integer.")
+
+            # 添加确认按钮
+            confirm_button = customtkinter.CTkButton(dialog, text="Confirm", command=save_peak_num)
+            confirm_button.pack(pady=10)
+
+            # 让对话框成为模态窗口，阻止主窗口交互
+            dialog.transient(self)
+            dialog.grab_set()
+            self.wait_window(dialog)
+            self.partition_button.configure(state="enabled")
+            self.calculate_amplitude_button.configure(state="disabled")
+        else:
+            self.partition_button.configure(state="disabled")
+            self.calculate_amplitude_button.configure(state="normal")
+            
     def apply_snr(self):
         if self.time is None or self.df_f is None:
             messagebox.showwarning(title="Warning", message="No data loaded.")
@@ -899,25 +1045,81 @@ class App(customtkinter.CTk):
 
         self.baseline_line, = self.ax.plot(self.time, self.baseline_values, color='m')
         self.canvas.draw()
+        self.calculate_DF_F_button.configure(state="normal")
+
+    def calculate_DF_F(self):
+        """
+        Calculate DF/F using the baseline values and update the plot.
+        """
+        if self.df_f is None or self.baseline_values is None:
+            messagebox.showwarning(title="Warning", message="No data or baseline available.")
+            return
+
+        try:
+            # Calculate new DF/F values
+            self.df_f = (self.df_f - self.baseline_values) / self.baseline_values
+
+            # Clear previous plot content
+            self.clear_plot()
+            self.ax.clear()
+
+            # Plot the updated DF/F values
+            self.ax.plot(self.time, self.df_f, color='blue')
+            self.ax.set_ylim(np.min(self.df_f), np.max(self.df_f))
+            self.ax.grid(True)
+
+            # Update the canvas to show the new plot
+            self.canvas.draw()
+        except Exception as e:
+            messagebox.showerror(title="Error", message=f"An error occurred while calculating DF/F: {e}")
 
     def calculate_amplitude(self):
         if not self.marked_peaks:
             messagebox.showwarning(title="Warning", message="No peaks available for amplitude calculation.")
             return
-        # if self.baseline_values is None:
-        #     messagebox.showwarning(title="Warning", message="Baseline not calculated. Please calculate the baseline first.")
-        #     return
 
-        # Calculate amplitude for each marked peak
-        # for peak in self.marked_peaks:
-        #     peak_time, peak_value = peak
-        #     peak_index = self.time[self.time == peak_time].index[0]
-        #     baseline_value_at_peak = self.baseline_values[peak_index]
-        #     amplitude = peak_value - baseline_value_at_peak
-        #     self.amplitudes[peak] = amplitude
+        # Sort marked peaks by time
+        self.marked_peaks = sorted(self.marked_peaks, key=lambda peak: peak[0])
 
-        messagebox.showinfo(title="Success", message="Amplitudes successfully calculated for all peaks.")
-    
+        for i, (peak_time, peak_value) in enumerate(self.marked_peaks):
+            peak_index = self.time[self.time == peak_time].index[0]
+
+            # Evoked模式且当前peak的索引不是peak_num的整数倍
+            if self.evoked_var.get() == "on" and (i) % self.peak_num != 0:
+                # 确保有上一个峰值以计算fitted decay curve
+                if i > 0:
+                    prev_peak_time, prev_peak_value = self.marked_peaks[i - 1]
+                    prev_peak_index = self.time[self.time == prev_peak_time].index[0]
+
+                    # 检查是否有之前的 decay curve
+                    if (prev_peak_time, prev_peak_value) in self.decay_line_map:
+                        # 获取上一个峰值的 decay curve 参数
+                        prev_decay_line = self.decay_line_map[(prev_peak_time, prev_peak_value)]
+
+                        # Decay function: 计算 decay curve 延伸到当前 peak 的值
+                        t_data_range = peak_index - prev_peak_index
+                        prev_tau = self.tau_values[(prev_peak_time, prev_peak_value)]
+                        prev_y0 = prev_peak_value
+                        decay_value = self.decay_function(t_data_range, prev_tau, prev_y0)
+
+                        # 计算新的 amplitude
+                        new_amplitude = peak_value - decay_value
+                        self.amplitudes[(peak_time, peak_value)] = new_amplitude
+
+                        print(f"Evoked on: Calculated amplitude for peak {i}, Value: {new_amplitude}")
+                    else:
+                        print(f"Warning: No decay line found for peak {i - 1}. Skipping amplitude calculation.")
+                        self.amplitudes[(peak_time, peak_value)] = None  # 未能计算的情况
+                else:
+                    print("Warning: First peak cannot calculate amplitude with evoked mode.")
+                    self.amplitudes[(peak_time, peak_value)] = None  # 未能计算的情况
+            else:
+                # 非 Evoked 模式或 peak_num 整数倍，使用默认的 amplitude 计算
+                self.amplitudes[(peak_time, peak_value)] = peak_value
+                print(f"Default amplitude for peak {i}, Value: {peak_value}")
+
+        messagebox.showinfo(title="Success", message="Amplitude calculation completed.")
+
     def export_stats(self):
         if self.time is None or not self.marked_peaks:
             messagebox.showwarning(title="Warning", message="No stats to export.")
@@ -931,7 +1133,7 @@ class App(customtkinter.CTk):
 
         df_export = pd.DataFrame({
             "Time": peak_times,
-            "Amplitude": peak_values,
+            "Amplitude": amplitude_values,
             "Rise Time": rise_times,
             "Decay Time": tau_values
         })
@@ -1069,6 +1271,8 @@ class App(customtkinter.CTk):
             messagebox.showwarning(title="Warning", message="No peaks available for decay calculation.")
             return
 
+        self.calculate_amplitude_button.configure(state="normal")
+
         # Sort marked peaks by time
         self.marked_peaks = sorted(self.marked_peaks, key=lambda peak: peak[0])
 
@@ -1126,7 +1330,7 @@ class App(customtkinter.CTk):
         if self.time is None or self.df_f is None:
             messagebox.showwarning(title="Warning", message="No data loaded.")
             return
-        
+
         if not self.marked_peaks:
             messagebox.showwarning(title="Warning", message="No peaks available for rise calculation.")
             return
@@ -1140,45 +1344,70 @@ class App(customtkinter.CTk):
                 continue
 
             peak_index = self.time[self.time == peak_time].index[0]
-
             rise_start_index = None
             rise_end_index = peak_index
 
-            # Search leftward from the peak to find the first local minimum as the initial rise start point
-            for j in range(peak_index - 1, 0, -1):
-                if self.df_f[j] < self.df_f[j - 1] and self.df_f[j] < self.df_f[j + 1]:
-                    rise_start_index = j
-                    break
-            if rise_start_index is None:
-                rise_start_index = 0  # If no local minimum is found, set it as the starting point of the data
+            # 如果复选框被勾选且当前 peak 的索引不是 peak_num 的整数倍
+            if self.evoked_var.get() == "on" and (i) % self.peak_num != 0:
+                print("evoked on")
+                if i > 0:  # 确保不是第一个 peak
+                    prev_peak_time, _ = self.marked_peaks[i - 1]
+                    prev_peak_index = self.time[self.time == prev_peak_time].index[0]
+                    rise_start_index = prev_peak_index + np.argmin(self.df_f[prev_peak_index:peak_index])
+                else:
+                    rise_start_index = None  # 如果是第一个 peak，默认从头开始
+                print(f"i:{i}, current peak index: {peak_index}, prev peak index:{prev_peak_index}, rise start index: {rise_start_index}")
 
-            # Check if the identified rise_start_index meets the conditions; if not, continue searching
-            
-            try:
-                peak_to_valley_ratio = float(self.peak_to_valley_ratio_entry.get())
-            except ValueError:
-                peak_to_valley_ratio = 0.47
-            while self.df_f[rise_start_index] >= peak_to_valley_ratio * peak_value and rise_start_index > 0:
-                for j in range(rise_start_index - 1, 0, -1):
+
+            # 如果复选框未勾选或索引是整数倍，按照原逻辑寻找起始点
+            if rise_start_index is None:
+                for j in range(peak_index - 1, 0, -1):
                     if self.df_f[j] < self.df_f[j - 1] and self.df_f[j] < self.df_f[j + 1]:
                         rise_start_index = j
                         break
-                else:
-                    break  # Exit if no new local minimum is found
+                if rise_start_index is None:
+                    rise_start_index = 0  # 如果没有找到局部最小值，则从数据开头开始
+
+                try:
+                    peak_to_valley_ratio = float(self.peak_to_valley_ratio_entry.get())
+                except ValueError:
+                    peak_to_valley_ratio = 0.47
+                while self.df_f[rise_start_index] >= peak_to_valley_ratio * peak_value and rise_start_index > 0:
+                    for j in range(rise_start_index - 1, 0, -1):
+                        if self.df_f[j] < self.df_f[j - 1] and self.df_f[j] < self.df_f[j + 1]:
+                            rise_start_index = j
+                            break
+                    else:
+                        break  # Exit if no new local minimum is found
 
             # Fit rise function
             interval_data = self.df_f
             t_data = np.arange(rise_start_index, peak_index + 1)
             t_data_range = t_data - rise_start_index
-            y_data = interval_data[rise_start_index : peak_index + 1]
+            y_data = interval_data[rise_start_index: peak_index + 1]
             y_data = np.array(y_data)  # Ensure y_data is a numpy array
             y0 = max(y_data[0], 0.01)
+
+            # 检查 t_data_range 和 y_data 是否有效
+            if np.any(np.isnan(t_data_range)) or np.any(np.isnan(y_data)):
+                print("Error: t_data_range or y_data contains NaN values.")
+            if np.any(np.isinf(t_data_range)) or np.any(np.isinf(y_data)):
+                print("Error: t_data_range or y_data contains Inf values.")
 
             try:
                 popt, pcov = curve_fit(lambda t, tau: self.rise_function(t, tau, y0), t_data_range, y_data, p0=[0.5], bounds=(0.001, np.inf))
                 tau_fitted = popt[0]
+                print(f"tau_fitted: {tau_fitted}")
                 t_fit = np.linspace(0, t_data_range[-1], 100)
                 y_fit = self.rise_function(t_fit, tau_fitted, y0)
+
+                # Clip the fitted curve to not exceed the peak value
+                valid_indices = np.where(y_fit <= peak_value)[0]
+                if len(valid_indices) > 0:
+                    t_fit = t_fit[valid_indices]
+                    y_fit = y_fit[valid_indices]
+
+                # Plot the fitted rise curve
                 rise_line, = self.ax.plot(self.time[rise_start_index] + t_fit, y_fit, 'r--', label=f'Rise Fit')   
                 self.rise_lines.append(rise_line)
                 self.rise_line_map[(peak_time, peak_value)] = rise_line
@@ -1190,7 +1419,7 @@ class App(customtkinter.CTk):
         # Update the plot
         self.canvas.draw()
         messagebox.showinfo(title="Success", message="Rise time successfully calculated for all peaks.")
-    
+
     def clear_plot(self, clear=False):
         for point, text in zip(self.points, self.texts):
             point.remove()
@@ -1346,7 +1575,7 @@ class App(customtkinter.CTk):
             self.ax.set_xlim(new_xlims)
             self.update_annotations()
             self.canvas.draw()
-
+  
     def prev_page(self):
         if self.time is not None:
             xlims = self.ax.get_xlim()
@@ -1356,7 +1585,27 @@ class App(customtkinter.CTk):
             self.update_annotations()
             self.canvas.draw()
 
-    def zoom_in(self):
+    def move_up(self):
+        if self.time is not None:
+            ylims = self.ax.get_ylim()
+            range_height = ylims[1] - ylims[0]
+            shift = range_height * 0.1  # 上移 10% 的当前范围
+            new_ylims = [ylims[0] + shift, ylims[1] + shift]
+            self.ax.set_ylim(new_ylims)
+            self.update_annotations()
+            self.canvas.draw()
+
+    def move_down(self):
+        if self.time is not None:
+            ylims = self.ax.get_ylim()
+            range_height = ylims[1] - ylims[0]
+            shift = range_height * 0.1  # 下移 10% 的当前范围
+            new_ylims = [ylims[0] - shift, ylims[1] - shift]
+            self.ax.set_ylim(new_ylims)
+            self.update_annotations()
+            self.canvas.draw()
+
+    def zoom_in_x(self):
         if self.time is not None:
             xlims = self.ax.get_xlim()
             new_xlims = [xlims[0] + (xlims[1] - xlims[0]) * 0.1, xlims[1] - (xlims[1] - xlims[0]) * 0.1]
@@ -1364,11 +1613,27 @@ class App(customtkinter.CTk):
             self.update_annotations()
             self.canvas.draw()
 
-    def zoom_out(self):
+    def zoom_out_x(self):
         if self.time is not None:
             xlims = self.ax.get_xlim()
             new_xlims = [xlims[0] - (xlims[1] - xlims[0]) * 0.1, xlims[1] + (xlims[1] - xlims[0]) * 0.1]
             self.ax.set_xlim(new_xlims)
+            self.update_annotations()
+            self.canvas.draw()
+
+    def zoom_in_y(self):
+        if self.df_f is not None:
+            ylims = self.ax.get_ylim()
+            new_ylims = [ylims[0] + (ylims[1] - ylims[0]) * 0.1, ylims[1] - (ylims[1] - ylims[0]) * 0.1]
+            self.ax.set_ylim(new_ylims)
+            self.update_annotations()
+            self.canvas.draw()
+
+    def zoom_out_y(self):
+        if self.df_f is not None:
+            ylims = self.ax.get_ylim()
+            new_ylims = [ylims[0] - (ylims[1] - ylims[0]) * 0.1, ylims[1] + (ylims[1] - ylims[0]) * 0.1]
+            self.ax.set_ylim(new_ylims)
             self.update_annotations()
             self.canvas.draw()
 

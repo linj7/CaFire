@@ -2,3 +2,4 @@ data/
 dist/
 build/
 calcium_mini_analysis.spec
+calcium_mini_analysis_customized.py
