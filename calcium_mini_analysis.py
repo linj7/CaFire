@@ -718,6 +718,8 @@ class App(customtkinter.CTk):
         self.partition_lines = []
         self.partition_labels = []
         self.peak_num = None
+        self.rise_start_markers = {}  # 改用字典来存储rise start markers，用peak作为键
+        self.default_peak_to_valley_ratio = 0.47  # 添加这个变量来存储计算出的默认值
 
         # Store last parameters
         self.last_sheet_name = ""
@@ -791,6 +793,8 @@ class App(customtkinter.CTk):
         if self.df_f is not None:
             self.evoked_var.set("off")
             self.peak_num = None
+            # 清空 peak_to_valley_ratio_entry
+            self.peak_to_valley_ratio_entry.delete(0, 'end')
 
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl')
@@ -920,60 +924,58 @@ class App(customtkinter.CTk):
         if self.time is None or self.df_f is None:
             messagebox.showwarning(title="Warning", message="No data loaded.")
             return
+        dialog = ThresholdDialog(self, self.last_peak_threshold, self.last_min_distance)
+        self.wait_window(dialog)
+        if not dialog.user_cancelled:
+            try:
+                peak_threshold = float(dialog.peak_threshold)
+                min_distance = float(dialog.min_distance)
+                self.last_peak_threshold = dialog.peak_threshold
+                self.last_min_distance = dialog.min_distance
 
-        # Show the ThresholdDialog with last used values
-        threshold_dialog = ThresholdDialog(
-            self,
-            peak_threshold=self.last_peak_threshold,
-            min_distance=self.last_min_distance
-        )
-        self.wait_window(threshold_dialog)  # Wait until the dialog is closed
+                # 计算并保存默认的peak to valley ratio
+                if self.df_f is not None:
+                    max_value = np.max(self.df_f)
+                    if max_value != 0:  # 避免除以0
+                        self.default_peak_to_valley_ratio = peak_threshold / max_value
+                        # 如果entry是空的，自动填入计算出的值
+                        if not self.peak_to_valley_ratio_entry.get():
+                            self.peak_to_valley_ratio_entry.delete(0, 'end')
+                            self.peak_to_valley_ratio_entry.insert(0, f"{self.default_peak_to_valley_ratio:.3f}")
 
-        # Check if the user cancelled the operation
-        if threshold_dialog.user_cancelled:
-            return
+                # Clear previous points, texts, and decay lines
+                self.clear_plot(clear=True)
 
-        # Get the Peak threshold and Min distance from the input boxes
-        try:
-            peak_threshold = float(threshold_dialog.peak_threshold)
-            min_distance = int(threshold_dialog.min_distance)
-            # Update last used values
-            self.last_peak_threshold = threshold_dialog.peak_threshold
-            self.last_min_distance = threshold_dialog.min_distance
-        except ValueError:
-            messagebox.showwarning(title="Warning", message="Invalid values for threshold or distance.")
-            return
+                # Find peaks with the provided threshold and distance
+                peaks, _ = find_peaks(self.df_f, height=peak_threshold, distance=min_distance)
 
-        # Clear previous points, texts, and decay lines
-        self.clear_plot(clear=True)
+                # Update the x-axis limits to ensure all detected peaks are within view
+                if peaks.size > 0:
+                    min_peak_x = np.min(self.time.iloc[peaks])
+                    max_peak_x = np.max(self.time.iloc[peaks])
+                    current_xlim = self.ax.get_xlim()
+                    new_xlim = (min(current_xlim[0], min_peak_x), max(current_xlim[1], max_peak_x))
+                    self.ax.set_xlim(new_xlim)
 
-        # Find peaks with the provided threshold and distance
-        peaks, _ = find_peaks(self.df_f, height=peak_threshold, distance=min_distance)
+                # Mark peaks on the plot
+                xlims = self.ax.get_xlim()
+                for peak in peaks:
+                    if xlims[0] <= self.time.iloc[peak] <= xlims[1]:  # Only plot peaks within the current view limits
+                        if (self.time.iloc[peak], self.df_f.iloc[peak]) not in self.marked_peaks:  # Avoid duplicate peaks
+                            point, = self.ax.plot(self.time.iloc[peak], self.df_f.iloc[peak], 'ro')
+                            text = self.ax.text(self.time.iloc[peak], self.df_f.iloc[peak],
+                                                f'({self.time.iloc[peak]}, {self.df_f.iloc[peak]:.4f})', fontsize=8,
+                                                color='red')
+                            self.points.append(point)
+                            self.texts.append(text)
+                            self.marked_peaks.append((self.time.iloc[peak], self.df_f.iloc[peak]))
+                            self.decay_calculated.append(False)
+                            self.rise_calculated.append(False)
+                self.marked_peaks.sort()
+                self.canvas.draw()
 
-        # Update the x-axis limits to ensure all detected peaks are within view
-        if peaks.size > 0:
-            min_peak_x = np.min(self.time.iloc[peaks])
-            max_peak_x = np.max(self.time.iloc[peaks])
-            current_xlim = self.ax.get_xlim()
-            new_xlim = (min(current_xlim[0], min_peak_x), max(current_xlim[1], max_peak_x))
-            self.ax.set_xlim(new_xlim)
-
-        # Mark peaks on the plot
-        xlims = self.ax.get_xlim()
-        for peak in peaks:
-            if xlims[0] <= self.time.iloc[peak] <= xlims[1]:  # Only plot peaks within the current view limits
-                if (self.time.iloc[peak], self.df_f.iloc[peak]) not in self.marked_peaks:  # Avoid duplicate peaks
-                    point, = self.ax.plot(self.time.iloc[peak], self.df_f.iloc[peak], 'ro')
-                    text = self.ax.text(self.time.iloc[peak], self.df_f.iloc[peak],
-                                        f'({self.time.iloc[peak]}, {self.df_f.iloc[peak]:.4f})', fontsize=8,
-                                        color='red')
-                    self.points.append(point)
-                    self.texts.append(text)
-                    self.marked_peaks.append((self.time.iloc[peak], self.df_f.iloc[peak]))
-                    self.decay_calculated.append(False)
-                    self.rise_calculated.append(False)
-        self.marked_peaks.sort()
-        self.canvas.draw()
+            except ValueError as e:
+                messagebox.showerror(title="Error", message=str(e))
 
     @staticmethod
     def calculate_baseline_by_fitted_line(data_series, first_interval_start, first_interval_end, second_interval_start, second_interval_end):
@@ -1335,6 +1337,12 @@ class App(customtkinter.CTk):
             messagebox.showwarning(title="Warning", message="No peaks available for rise calculation.")
             return
 
+        # 获取peak to valley ratio，优先使用用户输入值，否则使用计算值或默认值
+        try:
+            peak_to_valley_ratio = float(self.peak_to_valley_ratio_entry.get())
+        except ValueError:
+            peak_to_valley_ratio = self.default_peak_to_valley_ratio
+
         # Sort marked peaks by time
         self.marked_peaks = sorted(self.marked_peaks, key=lambda peak: peak[0])
 
@@ -1380,11 +1388,16 @@ class App(customtkinter.CTk):
                     else:
                         break  # Exit if no new local minimum is found
 
+            # 在rise_start_index处添加标记
+            rise_start_marker, = self.ax.plot(self.time[rise_start_index], self.df_f[rise_start_index], 'gx')
+            self.rise_start_markers[(peak_time, peak_value)] = rise_start_marker  # 使用peak作为键来存储marker
+            
             # Fit rise function
             interval_data = self.df_f
             t_data = np.arange(rise_start_index, peak_index + 1)
             t_data_range = t_data - rise_start_index
             y_data = interval_data[rise_start_index: peak_index + 1]
+
             y_data = np.array(y_data)  # Ensure y_data is a numpy array
             y0 = max(y_data[0], 0.01)
 
@@ -1456,6 +1469,11 @@ class App(customtkinter.CTk):
         if self.baseline_line is not None:
             self.baseline_line.remove()
             self.baseline_line = None
+
+        # 清除rise起始点的标记
+        for marker in self.rise_start_markers.values():
+            marker.remove()
+        self.rise_start_markers.clear()
 
         self.canvas.draw() # refresh the canvas
 
@@ -1557,6 +1575,10 @@ class App(customtkinter.CTk):
                         if rise_line in self.rise_lines:
                             self.rise_lines.remove(rise_line)
                         rise_line.remove()
+                        # 删除对应的rise start marker
+                        if peak in self.rise_start_markers:
+                            marker = self.rise_start_markers.pop(peak)
+                            marker.remove()
                     if peak in self.rise_times:
                         del self.rise_times[peak]
                     if peak in self.tau_values:
@@ -1660,7 +1682,6 @@ class App(customtkinter.CTk):
                 label.set_visible(False)
 
         self.canvas.draw()
-
 
 if __name__ == "__main__":
     app = App()
