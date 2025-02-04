@@ -795,6 +795,13 @@ class App(customtkinter.CTk):
             self.peak_num = None
             # 清空 peak_to_valley_ratio_entry
             self.peak_to_valley_ratio_entry.delete(0, 'end')
+            # 清除baseline相关的数据
+            self.baseline_values = None
+            if self.baseline_line is not None:
+                self.baseline_line.remove()
+                self.baseline_line = None
+            # 禁用Calculate DF/F按钮，因为需要重新计算baseline
+            self.calculate_DF_F_button.configure(state="disabled")
 
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl')
@@ -1132,12 +1139,25 @@ class App(customtkinter.CTk):
         amplitude_values = [self.amplitudes.get(peak, None) for peak in self.marked_peaks]
         tau_values = [self.tau_values.get(peak, None) for peak in self.marked_peaks]
         rise_times = [self.rise_times.get(peak, None) for peak in self.marked_peaks]
+        
+        # 添加baseline值
+        baseline_values = []
+        if self.baseline_values is not None:
+            for peak_time in peak_times:
+                # 找到peak_time对应的时间索引
+                time_index = self.time[self.time == peak_time].index[0]
+                # 获取该位置的baseline值
+                baseline_value = self.baseline_values[time_index]
+                baseline_values.append(baseline_value)
+        else:
+            baseline_values = [None] * len(peak_times)
 
         df_export = pd.DataFrame({
             "Time": peak_times,
             "Amplitude": amplitude_values,
             "Rise Time": rise_times,
-            "Decay Time": tau_values
+            "Decay Time": tau_values,
+            "Baseline": baseline_values  # 添加baseline列
         })
         df_export = df_export.sort_values(by="Time")
 
