@@ -945,10 +945,9 @@ class App(customtkinter.CTk):
                     max_value = np.max(self.df_f)
                     if max_value != 0:  # 避免除以0
                         self.default_peak_to_valley_ratio = peak_threshold / max_value
-                        # 如果entry是空的，自动填入计算出的值
-                        if not self.peak_to_valley_ratio_entry.get():
-                            self.peak_to_valley_ratio_entry.delete(0, 'end')
-                            self.peak_to_valley_ratio_entry.insert(0, f"{self.default_peak_to_valley_ratio:.3f}")
+                        # 无论entry是否为空，都更新值
+                        self.peak_to_valley_ratio_entry.delete(0, 'end')
+                        self.peak_to_valley_ratio_entry.insert(0, f"{self.default_peak_to_valley_ratio:.3f}")
 
                 # Clear previous points, texts, and decay lines
                 self.clear_plot(clear=True)
@@ -984,76 +983,35 @@ class App(customtkinter.CTk):
             except ValueError as e:
                 messagebox.showerror(title="Error", message=str(e))
 
-    @staticmethod
-    def calculate_baseline_by_fitted_line(data_series, first_interval_start, first_interval_end, second_interval_start, second_interval_end):
-        """
-        Calculate baseline as a line connecting the average values of two specified intervals.
-        """
-        start_mean = np.mean(data_series[first_interval_start:first_interval_end])
-        end_mean = np.mean(data_series[second_interval_start:second_interval_end])
-
-        # Linear fit between two points: (0, start_mean) and (len(data_series) - 1, end_mean)
-        x_values = np.array([0, len(data_series) - 1])
-        y_values = np.array([start_mean, end_mean])
-
-        # Calculate linear fit parameters
-        a, b = np.polyfit(x_values, y_values, 1)
-
-        # Calculate baseline values for each point in data_series
-        baseline_values = a * np.arange(len(data_series)) + b
-        
-        return baseline_values
-
     def calculate_baseline(self):
         if self.time is None or self.df_f is None:
             messagebox.showwarning(title="Warning", message="No data loaded.")
             return
 
-        # Create and show the BaselineDialog with default values
-        baseline_dialog = BaselineDialog(
-            self,
-            default_first_start=self.last_first_interval_start,
-            default_first_end=self.last_first_interval_end,
-            default_second_start=self.last_second_interval_start,
-            default_second_end=self.last_second_interval_end
-        )
-        self.wait_window(baseline_dialog)  # Wait until the dialog is closed
+        window_size = 50  # 滑动窗口大小
+        percentile = 30  # 使用第20百分位数作为baseline
 
-        # Check if the user cancelled the operation
-        if baseline_dialog.user_cancelled:
-            return
+        # 初始化baseline数组
+        self.baseline_values = np.zeros_like(self.df_f)
 
-        # Get user input for intervals
-        try:
-            first_interval_start = int(baseline_dialog.first_interval_start)
-            first_interval_end = int(baseline_dialog.first_interval_end)
-            second_interval_start = int(baseline_dialog.second_interval_start)
-            second_interval_end = int(baseline_dialog.second_interval_end)
-        except ValueError:
-            messagebox.showwarning(title="Warning", message="Invalid interval values.")
-            return
+        # 对每个点计算baseline
+        for i in range(len(self.df_f)):
+            if i < window_size:  # 如果是前面的点，使用后面的点
+                window = self.df_f[i:i+window_size]
+            else:  # 否则使用前面的点
+                window = self.df_f[i-window_size:i]
+            
+            # 计算窗口内的第10百分位数作为baseline
+            self.baseline_values[i] = np.percentile(window, percentile)
 
-        # Store the last inputs
-        self.last_first_interval_start = baseline_dialog.first_interval_start
-        self.last_first_interval_end = baseline_dialog.first_interval_end
-        self.last_second_interval_start = baseline_dialog.second_interval_start
-        self.last_second_interval_end = baseline_dialog.second_interval_end
-
-        # Calculate baseline values
-        self.baseline_values = self.calculate_baseline_by_fitted_line(
-            self.df_f,
-            first_interval_start,
-            first_interval_end,
-            second_interval_start,
-            second_interval_end
-        )
-
-        # Clear previous baseline line if exists
+        # 绘制baseline
         if self.baseline_line is not None:
             self.baseline_line.remove()
-
-        self.baseline_line, = self.ax.plot(self.time, self.baseline_values, color='m')
+        self.baseline_line, = self.ax.plot(self.time, self.baseline_values, 'r--', alpha=0.5, label='Baseline')
+        self.ax.legend()
         self.canvas.draw()
+
+        # 启用Calculate DF/F按钮
         self.calculate_DF_F_button.configure(state="normal")
 
     def calculate_DF_F(self):
