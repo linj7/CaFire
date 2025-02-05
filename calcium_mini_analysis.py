@@ -12,6 +12,7 @@ from PIL import Image, ImageEnhance
 import tkinter
 import customtkinter
 from tkinter import filedialog, messagebox
+import tkinter.ttk as ttk
 
 # Set up CustomTkinter appearance
 customtkinter.set_appearance_mode("System")  # Modes: "System", "Dark", "Light"
@@ -309,13 +310,70 @@ class ThresholdDialog(customtkinter.CTkToplevel):
 class App(customtkinter.CTk):
     def __init__(self):
         super().__init__()
+        self.title("CFire by Lin - Dickman Lab")
+        
+        # 设置窗口最小尺寸
+        self.minsize(1000, 600)
+        
+        # 配置主网格
+        self.grid_rowconfigure(0, weight=3)  # 画布区域
+        self.grid_rowconfigure(1, weight=1)  # 表格区域
+        self.grid_columnconfigure(1, weight=1)  # 主内容区域可扩展
+        
+        # 创建侧边栏框架
+        self.sidebar_frame = customtkinter.CTkFrame(self, width=200)
+        self.sidebar_frame.grid(row=0, column=0, rowspan=2, padx=5, pady=5, sticky="nsew")
+        self.sidebar_frame.grid_propagate(False)
+        
+        # 创建主内容区域（用于放置画布）
+        self.plot_frame = customtkinter.CTkFrame(self)
+        self.plot_frame.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
+        
+        # 创建表格区域
+        self.table_frame = customtkinter.CTkFrame(self)
+        self.table_frame.grid(row=1, column=1, padx=5, pady=5, sticky="nsew")
+        
+        # 设置matplotlib图形
+        self.fig = plt.figure(figsize=(10, 4))  # 调整画布的初始大小
+        self.ax = self.fig.add_subplot(111)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(fill="both", expand=True)
+        
+        # 创建表格
+        self.tree = ttk.Treeview(
+            self.table_frame,
+            columns=("Time", "Value", "Rise Time", "Decay Time", "Baseline"),
+            show="headings",
+            height=5  # 设置表格显示的行数
+        )
+        
+        # 设置列标题和宽度
+        columns = ("Time", "Value", "Rise Time", "Decay Time", "Baseline")
+        for col in columns:
+            self.tree.heading(col, text=col)
+            self.tree.column(col, width=100, anchor="center")
+        
+        # 创建滚动条
+        scrollbar = ttk.Scrollbar(self.table_frame, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+        
+        # 使用pack布局管理器放置表格和滚动条
+        self.tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # 设置表格样式
+        style = ttk.Style()
+        style.configure("Treeview", rowheight=25)
+        style.configure("Treeview.Heading", font=('Helvetica', 10, 'bold'))
+        
+        # ... 其他初始化代码 ...
 
         # Set window icon
         self.icon_path = os.path.join(os.path.dirname(__file__), 'assets/ecg_icon.ico')
         if os.path.exists(self.icon_path):
             self.iconbitmap(self.icon_path)
 
-        self.title("CaFire by Lin - Dickman Lab")
         self.geometry(f"{1200}x{900}")
 
         # Configure grid layout
@@ -885,30 +943,23 @@ class App(customtkinter.CTk):
                 # Find peaks with the provided parameters
                 peaks, _ = find_peaks(self.df_f, **peak_params)
 
-                # Update plot
+                # Update plot and table
                 if peaks.size > 0:
-                    min_peak_x = np.min(self.time.iloc[peaks])
-                    max_peak_x = np.max(self.time.iloc[peaks])
-                    current_xlim = self.ax.get_xlim()
-                    new_xlim = (min(current_xlim[0], min_peak_x), max(current_xlim[1], max_peak_x))
-                    self.ax.set_xlim(new_xlim)
-
-                xlims = self.ax.get_xlim()
-                for peak in peaks:
-                    if xlims[0] <= self.time.iloc[peak] <= xlims[1]:
-                        if (self.time.iloc[peak], self.df_f.iloc[peak]) not in self.marked_peaks:
-                            point, = self.ax.plot(self.time.iloc[peak], self.df_f.iloc[peak], 'ro')
-                            text = self.ax.text(self.time.iloc[peak], self.df_f.iloc[peak],
-                                              f'({self.time.iloc[peak]}, {self.df_f.iloc[peak]:.4f})', 
-                                              fontsize=8, color='red')
-                            self.points.append(point)
-                            self.texts.append(text)
-                            self.marked_peaks.append((self.time.iloc[peak], self.df_f.iloc[peak]))
-                            self.decay_calculated.append(False)
-                            self.rise_calculated.append(False)
-            
-                self.marked_peaks.sort()
-                self.canvas.draw()
+                    self.marked_peaks = []  # 清空现有的peaks
+                    for peak_idx in peaks:
+                        x_peak = self.time.iloc[peak_idx]
+                        y_peak = self.df_f.iloc[peak_idx]
+                        point, = self.ax.plot(x_peak, y_peak, 'ro')
+                        text = self.ax.text(x_peak, y_peak, f'({x_peak}, {y_peak:.4f})', fontsize=8, color='red')
+                        self.points.append(point)
+                        self.texts.append(text)
+                        self.marked_peaks.append((x_peak, y_peak))
+                        self.decay_calculated.append(False)
+                        self.rise_calculated.append(False)
+                
+                    # 更新表格和画布
+                    self.update_table()
+                    self.canvas.draw()
 
             except ValueError as e:
                 messagebox.showerror(title="Error", message=str(e))
@@ -1236,6 +1287,7 @@ class App(customtkinter.CTk):
             except RuntimeError:
                 messagebox.showwarning(title="Warning", message=f"Decay fitting failed for peak at {current_peak_time}.")
         messagebox.showinfo(title="Success", message="Decay time successfully calculated for all peaks.")
+        self.update_table()  # 更新表格
 
     def calculate_rise(self):
         if self.time is None or self.df_f is None:
@@ -1378,6 +1430,7 @@ class App(customtkinter.CTk):
         # 更新画布
         self.canvas.draw()
         messagebox.showinfo(title="Success", message="Rise time successfully calculated for all peaks.")
+        self.update_table()  # 更新表格
 
     def clear_plot(self, clear=False):
         for point, text in zip(self.points, self.texts):
@@ -1422,6 +1475,8 @@ class App(customtkinter.CTk):
         self.rise_start_markers.clear()
 
         self.canvas.draw() # refresh the canvas
+        for item in self.tree.get_children():
+            self.tree.delete(item)  # 清空表格
 
     @staticmethod
     def decay_function(t, tau, y0):
@@ -1493,6 +1548,7 @@ class App(customtkinter.CTk):
                             self.marked_peaks, self.points, self.texts, self.decay_calculated, self.rise_calculated = map(list, zip(*sorted_data))
 
                             self.canvas.draw()
+                            self.update_table()  # 更新表格
                     else:
                         messagebox.showinfo(title="Info", message="No peaks found within the window.")
                 else:
@@ -1534,6 +1590,7 @@ class App(customtkinter.CTk):
                     self.decay_calculated.pop(nearest_idx)
                     self.rise_calculated.pop(nearest_idx)
                     self.canvas.draw()
+                    self.update_table()  # 更新表格
 
     def next_page(self):
         if self.time is not None:
@@ -1628,6 +1685,39 @@ class App(customtkinter.CTk):
                 label.set_visible(False)
 
         self.canvas.draw()
+
+    def update_table(self):
+        # 清空表格
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        
+        # 获取所有peaks的数据并排序
+        peaks_data = []
+        for peak_time, peak_value in self.marked_peaks:
+            rise_time = self.rise_times.get((peak_time, peak_value), "N/A")
+            decay_time = self.tau_values.get((peak_time, peak_value), "N/A")
+            
+            # 获取baseline（这里假设是peak之前的最小值）
+            peak_index = self.time[self.time == peak_time].index[0]
+            if peak_index > 0:
+                baseline = min(self.df_f[max(0, peak_index-10):peak_index])
+            else:
+                baseline = "N/A"
+                
+            peaks_data.append((
+                f"{peak_time:.3f}",
+                f"{peak_value:.3f}",
+                f"{rise_time:.3f}" if isinstance(rise_time, float) else rise_time,
+                f"{decay_time:.3f}" if isinstance(decay_time, float) else decay_time,
+                f"{baseline:.3f}" if isinstance(baseline, float) else baseline
+            ))
+        
+        # 按时间排序
+        peaks_data.sort(key=lambda x: float(x[0]))
+        
+        # 添加到表格
+        for data in peaks_data:
+            self.tree.insert("", "end", values=data)
 
 if __name__ == "__main__":
     app = App()
