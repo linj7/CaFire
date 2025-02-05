@@ -333,19 +333,46 @@ class App(customtkinter.CTk):
         self.table_frame = customtkinter.CTkFrame(self)
         self.table_frame.grid(row=1, column=1, padx=5, pady=5, sticky="nsew")
         
-        # 设置matplotlib图形
-        self.fig = plt.figure(figsize=(10, 4))  # 调整画布的初始大小
-        self.ax = self.fig.add_subplot(111)
-        self.canvas = FigureCanvasTkAgg(self.fig, master=self.plot_frame)
-        self.canvas.draw()
-        self.canvas.get_tk_widget().pack(fill="both", expand=True)
+        # 创建表格操作按钮框架
+        self.table_button_frame = customtkinter.CTkFrame(self.table_frame)
+        self.table_button_frame.pack(side="left", fill="y", padx=5)
+        
+        # 添加表格操作按钮
+        self.select_all_button = customtkinter.CTkButton(
+            self.table_button_frame,
+            text="Select All",
+            width=100,
+            command=self.select_all_rows
+        )
+        self.select_all_button.pack(pady=5)
+        
+        self.copy_button = customtkinter.CTkButton(
+            self.table_button_frame,
+            text="Copy Selected",
+            width=100,
+            command=self.copy_selected_data
+        )
+        self.copy_button.pack(pady=5)
+        
+        self.export_button = customtkinter.CTkButton(
+            self.table_button_frame,
+            text="Export Selected",
+            width=100,
+            command=self.export_selected_data
+        )
+        self.export_button.pack(pady=5)
+        
+        # 创建表格和滚动条的框架
+        self.tree_frame = customtkinter.CTkFrame(self.table_frame)
+        self.tree_frame.pack(side="left", fill="both", expand=True)
         
         # 创建表格
         self.tree = ttk.Treeview(
-            self.table_frame,
+            self.tree_frame,
             columns=("Time", "Value", "Rise Time", "Decay Time", "Baseline"),
             show="headings",
-            height=5  # 设置表格显示的行数
+            height=5,
+            selectmode="extended"  # 允许多选
         )
         
         # 设置列标题和宽度
@@ -1718,6 +1745,67 @@ class App(customtkinter.CTk):
         # 添加到表格
         for data in peaks_data:
             self.tree.insert("", "end", values=data)
+
+    def select_all_rows(self):
+        """选择表格中的所有行"""
+        for item in self.tree.get_children():
+            self.tree.selection_add(item)
+
+    def copy_selected_data(self):
+        """复制选中的数据到剪贴板"""
+        selected_items = self.tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Warning", "请先选择要复制的数据")
+            return
+        
+        # 获取列标题
+        headers = [self.tree.heading(col)["text"] for col in self.tree["columns"]]
+        
+        # 获取选中的数据
+        rows = []
+        rows.append("\t".join(headers))  # 添加表头
+        for item in selected_items:
+            values = self.tree.item(item)["values"]
+            rows.append("\t".join(map(str, values)))
+        
+        # 复制到剪贴板
+        self.clipboard_clear()
+        self.clipboard_append("\n".join(rows))
+        messagebox.showinfo("Success", "数据已复制到剪贴板")
+
+    def export_selected_data(self):
+        """导出选中的数据到Excel文件"""
+        selected_items = self.tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Warning", "请先选择要导出的数据")
+            return
+        
+        try:
+            # 选择保存路径
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".xlsx",
+                filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")]
+            )
+            
+            if not file_path:  # 用户取消了保存
+                return
+            
+            # 创建DataFrame
+            data = []
+            columns = self.tree["columns"]
+            
+            for item in selected_items:
+                values = self.tree.item(item)["values"]
+                data.append(values)
+            
+            df = pd.DataFrame(data, columns=columns)
+            
+            # 保存到Excel
+            df.to_excel(file_path, index=False)
+            messagebox.showinfo("Success", f"数据已成功导出到:\n{file_path}")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"导出失败:\n{str(e)}")
 
 if __name__ == "__main__":
     app = App()
