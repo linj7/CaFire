@@ -281,10 +281,10 @@ class SNRDialog(customtkinter.CTkToplevel):
         self.destroy()
 
 class ThresholdDialog(customtkinter.CTkToplevel):
-    def __init__(self, parent, peak_threshold="", min_distance=""):
+    def __init__(self, parent, peak_threshold="", min_distance="", width=""):
         super().__init__(parent)
         self.title("Apply Threshold")
-        self.geometry("250x250")
+        self.geometry("250x350")
 
         parent_x = parent.winfo_x()
         parent_y = parent.winfo_y()
@@ -292,25 +292,46 @@ class ThresholdDialog(customtkinter.CTkToplevel):
         offset_y = 100 
         self.geometry(f"+{parent_x + offset_x}+{parent_y + offset_y}")
 
-        # Center the dialog over the parent window
         self.transient(parent)
         self.grab_set()
 
         self.peak_threshold = None
         self.min_distance = None
+        self.width = None
         self.user_cancelled = False
 
-        self.label_threshold = customtkinter.CTkLabel(self, text="Peak Threshold:")
+        # Peak Height (Required)
+        self.label_threshold = customtkinter.CTkLabel(
+            self, 
+            text="Peak Height *",
+            font=("Helvetica", 12)
+        )
         self.label_threshold.pack(pady=(20, 0), padx=20)
         self.entry_threshold = customtkinter.CTkEntry(self, width=150)
-        self.entry_threshold.insert(0, peak_threshold)  # Pre-fill with last used value if provided
+        self.entry_threshold.insert(0, peak_threshold)
         self.entry_threshold.pack(pady=(5, 10), padx=20)
 
-        self.label_distance = customtkinter.CTkLabel(self, text="Min Distance Between Peaks:")
+        # Min Distance
+        self.label_distance = customtkinter.CTkLabel(
+            self, 
+            text="Min Distance",
+            font=("Helvetica", 12)
+        )
         self.label_distance.pack(pady=(5, 0), padx=20)
         self.entry_distance = customtkinter.CTkEntry(self, width=150)
-        self.entry_distance.insert(0, min_distance) 
+        self.entry_distance.insert(0, min_distance)  # 添加这行，设置初始值
         self.entry_distance.pack(pady=(5, 10), padx=20)
+
+        # Width
+        self.label_width = customtkinter.CTkLabel(
+            self, 
+            text="Width",
+            font=("Helvetica", 12)
+        )
+        self.label_width.pack(pady=(5, 0), padx=20)
+        self.entry_width = customtkinter.CTkEntry(self, width=150)
+        self.entry_width.insert(0, width)  # 添加这行，设置初始值
+        self.entry_width.pack(pady=(5, 10), padx=20)
 
         self.confirm_button = customtkinter.CTkButton(self, text="Confirm", command=self.on_confirm, width=100)
         self.confirm_button.pack(pady=(10, 20), padx=20)
@@ -320,9 +341,10 @@ class ThresholdDialog(customtkinter.CTkToplevel):
     def on_confirm(self):
         self.peak_threshold = self.entry_threshold.get()
         self.min_distance = self.entry_distance.get()
+        self.width = self.entry_width.get()
 
-        if not self.peak_threshold or not self.min_distance:
-            messagebox.showwarning(title="Warning", message="Both fields must be filled out.", parent=self)
+        if not self.peak_threshold:
+            messagebox.showwarning(title="Warning", message="Peak height is required.", parent=self)
             return
         self.grab_release()
         self.destroy()
@@ -735,6 +757,7 @@ class App(customtkinter.CTk):
         self.last_peak_num = "" 
         self.last_interval_size = ""
         self.last_offset = ""
+        self.last_width = ""  # 修改为空字符串
 
         self.canvas.mpl_connect('button_press_event', self.onclick)
     
@@ -795,13 +818,10 @@ class App(customtkinter.CTk):
             self.peak_num = None
             # 清空 peak_to_valley_ratio_entry
             self.peak_to_valley_ratio_entry.delete(0, 'end')
-            # 清除baseline相关的数据
-            self.baseline_values = None
-            if self.baseline_line is not None:
-                self.baseline_line.remove()
-                self.baseline_line = None
-            # 禁用Calculate DF/F按钮，因为需要重新计算baseline
-            self.calculate_DF_F_button.configure(state="disabled")
+            # 重置阈值相关的参数
+            self.last_peak_threshold = ""
+            self.last_min_distance = ""
+            self.last_width = ""
 
         try:
             df = pd.read_excel(file_path, sheet_name=sheet_name, engine='openpyxl')
@@ -931,31 +951,50 @@ class App(customtkinter.CTk):
         if self.time is None or self.df_f is None:
             messagebox.showwarning(title="Warning", message="No data loaded.")
             return
-        dialog = ThresholdDialog(self, self.last_peak_threshold, self.last_min_distance)
+
+        dialog = ThresholdDialog(
+            self, 
+            peak_threshold=self.last_peak_threshold,
+            min_distance=self.last_min_distance,
+            width=self.last_width
+        )
         self.wait_window(dialog)
+
         if not dialog.user_cancelled:
             try:
                 peak_threshold = float(dialog.peak_threshold)
-                min_distance = float(dialog.min_distance)
+                
+                # 保存用户输入的参数（包括空值）
                 self.last_peak_threshold = dialog.peak_threshold
-                self.last_min_distance = dialog.min_distance
+                self.last_min_distance = dialog.min_distance  # 保存原始输入，不使用默认值
+                self.last_width = dialog.width  # 保存原始输入，不使用默认值
+
+                # 处理可选参数，设置默认值
+                min_distance = float(dialog.min_distance) if dialog.min_distance else 4
+                width = float(dialog.width) if dialog.width else 4
 
                 # 计算并保存默认的peak to valley ratio
                 if self.df_f is not None:
                     max_value = np.max(self.df_f)
-                    if max_value != 0:  # 避免除以0
+                    if max_value != 0:
                         self.default_peak_to_valley_ratio = peak_threshold / max_value
-                        # 无论entry是否为空，都更新值
                         self.peak_to_valley_ratio_entry.delete(0, 'end')
                         self.peak_to_valley_ratio_entry.insert(0, f"{self.default_peak_to_valley_ratio:.3f}")
 
-                # Clear previous points, texts, and decay lines
+                # Clear previous points
                 self.clear_plot(clear=True)
 
-                # Find peaks with the provided threshold and distance
-                peaks, _ = find_peaks(self.df_f, height=peak_threshold, distance=min_distance)
+                # 构建find_peaks的参数字典
+                peak_params = {'height': peak_threshold}
+                if dialog.min_distance:
+                    peak_params['distance'] = min_distance
+                if dialog.width:
+                    peak_params['width'] = width
 
-                # Update the x-axis limits to ensure all detected peaks are within view
+                # Find peaks with the provided parameters
+                peaks, _ = find_peaks(self.df_f, **peak_params)
+
+                # Update plot
                 if peaks.size > 0:
                     min_peak_x = np.min(self.time.iloc[peaks])
                     max_peak_x = np.max(self.time.iloc[peaks])
@@ -963,20 +1002,20 @@ class App(customtkinter.CTk):
                     new_xlim = (min(current_xlim[0], min_peak_x), max(current_xlim[1], max_peak_x))
                     self.ax.set_xlim(new_xlim)
 
-                # Mark peaks on the plot
                 xlims = self.ax.get_xlim()
                 for peak in peaks:
-                    if xlims[0] <= self.time.iloc[peak] <= xlims[1]:  # Only plot peaks within the current view limits
-                        if (self.time.iloc[peak], self.df_f.iloc[peak]) not in self.marked_peaks:  # Avoid duplicate peaks
+                    if xlims[0] <= self.time.iloc[peak] <= xlims[1]:
+                        if (self.time.iloc[peak], self.df_f.iloc[peak]) not in self.marked_peaks:
                             point, = self.ax.plot(self.time.iloc[peak], self.df_f.iloc[peak], 'ro')
                             text = self.ax.text(self.time.iloc[peak], self.df_f.iloc[peak],
-                                                f'({self.time.iloc[peak]}, {self.df_f.iloc[peak]:.4f})', fontsize=8,
-                                                color='red')
+                                              f'({self.time.iloc[peak]}, {self.df_f.iloc[peak]:.4f})', 
+                                              fontsize=8, color='red')
                             self.points.append(point)
                             self.texts.append(text)
                             self.marked_peaks.append((self.time.iloc[peak], self.df_f.iloc[peak]))
                             self.decay_calculated.append(False)
                             self.rise_calculated.append(False)
+            
                 self.marked_peaks.sort()
                 self.canvas.draw()
 
