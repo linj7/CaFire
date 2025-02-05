@@ -232,58 +232,10 @@ class BaselineDialog(customtkinter.CTkToplevel):
         self.grab_release()
         self.destroy()
 
-class SNRDialog(customtkinter.CTkToplevel):
-    def __init__(self, parent, default_snr="3"):
-        super().__init__(parent)
-        self.title("Apply SNR")
-        self.geometry("150x150") 
-
-        parent_x = parent.winfo_x()
-        parent_y = parent.winfo_y()
-        offset_x = 100  # Horizontal offset from parent window
-        offset_y = 100  # Vertical offset from parent window
-        self.geometry(f"+{parent_x + offset_x}+{parent_y + offset_y}")
-
-        # Center the dialog over the parent window
-        self.transient(parent)
-        self.grab_set()
-
-        self.snr_threshold = None
-        self.user_cancelled = False
-
-        self.label_snr = customtkinter.CTkLabel(self, text="Enter SNR:")
-        self.label_snr.pack(pady=(20, 0), padx=20)
-        self.entry_snr = customtkinter.CTkEntry(self,width = 100)
-        self.entry_snr.insert(0, default_snr)  # Pre-fill with default value
-        self.entry_snr.pack(pady=(5, 10), padx=20)
-
-        self.confirm_button = customtkinter.CTkButton(self, text="Confirm", command=self.on_confirm, width = 100)
-        self.confirm_button.pack(pady=(10, 20), padx=20)
-
-        # Handle window close event
-        self.protocol("WM_DELETE_WINDOW", self.on_close)
-
-        # Allow resizing
-        self.resizable(True, True)
-
-    def on_confirm(self):
-        self.snr_threshold = self.entry_snr.get()
-        if not self.snr_threshold:
-            messagebox.showwarning(title="Warning", message="Please enter an SNR threshold.", parent=self)
-            return
-        self.grab_release()
-        self.destroy()
-
-    def on_close(self):
-        # When the user closes the dialog without confirming
-        self.user_cancelled = True
-        self.grab_release()
-        self.destroy()
-
 class ThresholdDialog(customtkinter.CTkToplevel):
     def __init__(self, parent, peak_threshold="", min_distance="", width=""):
         super().__init__(parent)
-        self.title("Apply Threshold")
+        self.title("Detect Peak")  # 修改对话框标题
         self.geometry("250x350")
 
         parent_x = parent.winfo_x()
@@ -428,19 +380,10 @@ class App(customtkinter.CTk):
         self.automatic_label.grid(row=row_counter, column=0, padx=10, pady=(5, 0), sticky="w")
         row_counter += 1
 
-        # Apply SNR button
-        self.apply_snr_button = customtkinter.CTkButton(
-            self.left_sidebar_frame, 
-            text="Apply SNR",
-            command=self.apply_snr
-        )
-        self.apply_snr_button.grid(row=row_counter, column=0, padx=10, pady=5, sticky="we")
-        row_counter += 1
-
         # Apply Threshold button
         self.apply_threshold_button = customtkinter.CTkButton(
             self.left_sidebar_frame, 
-            text="Apply Threshold",
+            text="Detect Peak",
             command=self.apply_threshold
         )
         self.apply_threshold_button.grid(row=row_counter, column=0, padx=10, pady=5, sticky="we")
@@ -747,7 +690,6 @@ class App(customtkinter.CTk):
         self.last_sheet_name = ""
         self.last_x_col = ""
         self.last_y_col = ""
-        self.last_snr_threshold = "3"
         self.last_peak_threshold = ""
         self.last_min_distance = ""
         self.last_first_interval_start = ""
@@ -892,61 +834,6 @@ class App(customtkinter.CTk):
             self.partition_button.configure(state="disabled")
             self.calculate_amplitude_button.configure(state="normal")
             
-    def apply_snr(self):
-        if self.time is None or self.df_f is None:
-            messagebox.showwarning(title="Warning", message="No data loaded.")
-            return
-
-        # Create and show the SNRDialog with default value
-        snr_dialog = SNRDialog(self, default_snr=self.last_snr_threshold)
-        self.wait_window(snr_dialog)  # Wait until the dialog is closed
-
-        # Check if the user cancelled the operation
-        if snr_dialog.user_cancelled:
-            return
-
-        # Get the SNR threshold from the input box
-        try:
-            snr_threshold = float(snr_dialog.snr_threshold)
-            self.last_snr_threshold = snr_dialog.snr_threshold  # Store the last input
-        except ValueError:
-            messagebox.showwarning(title="Warning", message="Invalid SNR value.")
-            return
-
-        # Clear previous points, texts, and decay lines
-        self.clear_plot(clear=True)
-
-        # Signal-to-noise ratio (SNR) based peak detection
-        noise_level = np.std(self.df_f)  # Estimate noise level using standard deviation of the signal
-
-        # Find peaks
-        peaks, properties = find_peaks(self.df_f, height=noise_level * snr_threshold)
-
-        # Update the x-axis limits to ensure all detected peaks are within view
-        if peaks.size > 0:
-            min_peak_x = np.min(self.time.iloc[peaks])
-            max_peak_x = np.max(self.time.iloc[peaks])
-            current_xlim = self.ax.get_xlim()
-            new_xlim = (min(current_xlim[0], min_peak_x), max(current_xlim[1], max_peak_x))
-            self.ax.set_xlim(new_xlim)
-
-        # Mark peaks on the plot
-        xlims = self.ax.get_xlim()
-        for peak in peaks:
-            if xlims[0] <= self.time.iloc[peak] <= xlims[1]:  # Only plot peaks within the current view limits
-                if (self.time.iloc[peak], self.df_f.iloc[peak]) not in self.marked_peaks:  # Avoid duplicate peaks
-                    point, = self.ax.plot(self.time.iloc[peak], self.df_f.iloc[peak], 'ro')
-                    text = self.ax.text(self.time.iloc[peak], self.df_f.iloc[peak],
-                                        f'({self.time.iloc[peak]}, {self.df_f.iloc[peak]:.4f})', fontsize=8,
-                                        color='red')
-                    self.points.append(point)
-                    self.texts.append(text)
-                    self.marked_peaks.append((self.time.iloc[peak], self.df_f.iloc[peak]))
-                    self.decay_calculated.append(False)
-                    self.rise_calculated.append(False)
-        self.marked_peaks.sort()
-        self.canvas.draw()
-
     def apply_threshold(self):
         if self.time is None or self.df_f is None:
             messagebox.showwarning(title="Warning", message="No data loaded.")
