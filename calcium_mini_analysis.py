@@ -774,6 +774,10 @@ class App(customtkinter.CTk):
             messagebox.showerror(title="Error", message=f"Error loading file: {e}")
             return
 
+        mean_value = np.mean(self.df_f)
+        std_value = np.std(self.df_f)
+        print(f"Mean: {mean_value}, Std: {std_value}")
+
         self.ax.clear()
         self.ax.plot(self.time, self.df_f, color='blue')
         self.ax.set_ylim(np.min(self.df_f), np.max(self.df_f))
@@ -930,10 +934,11 @@ class App(customtkinter.CTk):
             # 计算窗口内的第10百分位数作为baseline
             self.baseline_values[i] = np.percentile(window, percentile)
 
+        print(f"Baseline values mean: {np.mean(self.baseline_values)}, std: {np.std(self.baseline_values)}")
         # 绘制baseline
         if self.baseline_line is not None:
             self.baseline_line.remove()
-        self.baseline_line, = self.ax.plot(self.time, self.baseline_values, 'r--', alpha=0.5, label='Baseline')
+        self.baseline_line, = self.ax.plot(self.time, self.baseline_values, 'r--', alpha=0.5)
         self.ax.legend()
         self.canvas.draw()
 
@@ -1241,99 +1246,136 @@ class App(customtkinter.CTk):
             messagebox.showwarning(title="Warning", message="No peaks available for rise calculation.")
             return
 
-        # 获取peak to valley ratio，优先使用用户输入值，否则使用计算值或默认值
+        # 获取初始 peak to valley ratio
         try:
             peak_to_valley_ratio = float(self.peak_to_valley_ratio_entry.get())
         except ValueError:
             peak_to_valley_ratio = self.default_peak_to_valley_ratio
 
-        # Sort marked peaks by time
-        self.marked_peaks = sorted(self.marked_peaks, key=lambda peak: peak[0])
+        # 记录所有peaks的拟合结果
+        successful_fits = {}
+        all_fits_successful = False
+        max_ratio = 0.95  # 设置最大比率限制
+        
+        while not all_fits_successful and peak_to_valley_ratio < max_ratio:
+            successful_fits.clear()
+            all_fits_successful = True
 
-        for i, (peak_time, peak_value) in enumerate(self.marked_peaks):
-            # Skip if rise has already been calculated for this peak
-            if self.rise_calculated[i]:
-                continue
+            # Sort marked peaks by time
+            self.marked_peaks = sorted(self.marked_peaks, key=lambda peak: peak[0])
 
-            peak_index = self.time[self.time == peak_time].index[0]
-            rise_start_index = None
-            rise_end_index = peak_index
+            for i, (peak_time, peak_value) in enumerate(self.marked_peaks):
+                if self.rise_calculated[i]:
+                    continue
 
-            # 如果复选框被勾选且当前 peak 的索引不是 peak_num 的整数倍
-            if self.evoked_var.get() == "on" and (i) % self.peak_num != 0:
-                print("evoked on")
-                if i > 0:  # 确保不是第一个 peak
-                    prev_peak_time, _ = self.marked_peaks[i - 1]
-                    prev_peak_index = self.time[self.time == prev_peak_time].index[0]
-                    rise_start_index = prev_peak_index + np.argmin(self.df_f[prev_peak_index:peak_index])
-                else:
-                    rise_start_index = None  # 如果是第一个 peak，默认从头开始
-                print(f"i:{i}, current peak index: {peak_index}, prev peak index:{prev_peak_index}, rise start index: {rise_start_index}")
+                peak_index = self.time[self.time == peak_time].index[0]
+                rise_start_index = None
+                rise_end_index = peak_index
 
+                # ... (保持原有的rise_start_index查找逻辑) ...
+                if self.evoked_var.get() == "on" and (i) % self.peak_num != 0:
+                    if i > 0:
+                        prev_peak_time, _ = self.marked_peaks[i - 1]
+                        prev_peak_index = self.time[self.time == prev_peak_time].index[0]
+                        rise_start_index = prev_peak_index + np.argmin(self.df_f[prev_peak_index:peak_index])
+                    else:
+                        rise_start_index = None
 
-            # 如果复选框未勾选或索引是整数倍，按照原逻辑寻找起始点
-            if rise_start_index is None:
-                for j in range(peak_index - 1, 0, -1):
-                    if self.df_f[j] < self.df_f[j - 1] and self.df_f[j] < self.df_f[j + 1]:
-                        rise_start_index = j
-                        break
                 if rise_start_index is None:
-                    rise_start_index = 0  # 如果没有找到局部最小值，则从数据开头开始
-
-                try:
-                    peak_to_valley_ratio = float(self.peak_to_valley_ratio_entry.get())
-                except ValueError:
-                    peak_to_valley_ratio = 0.47
-                while self.df_f[rise_start_index] >= peak_to_valley_ratio * peak_value and rise_start_index > 0:
-                    for j in range(rise_start_index - 1, 0, -1):
+                    for j in range(peak_index - 1, 0, -1):
                         if self.df_f[j] < self.df_f[j - 1] and self.df_f[j] < self.df_f[j + 1]:
                             rise_start_index = j
                             break
-                    else:
-                        break  # Exit if no new local minimum is found
+                    if rise_start_index is None:
+                        rise_start_index = 0
 
-            # 在rise_start_index处添加标记
-            rise_start_marker, = self.ax.plot(self.time[rise_start_index], self.df_f[rise_start_index], 'gx')
-            self.rise_start_markers[(peak_time, peak_value)] = rise_start_marker  # 使用peak作为键来存储marker
-            
-            # Fit rise function
-            interval_data = self.df_f
-            t_data = np.arange(rise_start_index, peak_index + 1)
-            t_data_range = t_data - rise_start_index
-            y_data = interval_data[rise_start_index: peak_index + 1]
+                    while self.df_f[rise_start_index] >= peak_to_valley_ratio * peak_value and rise_start_index > 0:
+                        for j in range(rise_start_index - 1, 0, -1):
+                            if self.df_f[j] < self.df_f[j - 1] and self.df_f[j] < self.df_f[j + 1]:
+                                rise_start_index = j
+                                break
+                        else:
+                            break
 
-            y_data = np.array(y_data)  # Ensure y_data is a numpy array
-            y0 = max(y_data[0], 0.01)
+                # 准备拟合数据
+                t_data = np.arange(rise_start_index, peak_index + 1)
+                t_data_range = t_data - rise_start_index
+                y_data = np.array(self.df_f[rise_start_index:peak_index + 1])
+                y0 = max(y_data[0], 0.01)
 
-            # 检查 t_data_range 和 y_data 是否有效
-            if np.any(np.isnan(t_data_range)) or np.any(np.isnan(y_data)):
-                print("Error: t_data_range or y_data contains NaN values.")
-            if np.any(np.isinf(t_data_range)) or np.any(np.isinf(y_data)):
-                print("Error: t_data_range or y_data contains Inf values.")
+                try:
+                    popt, _ = curve_fit(
+                        lambda t, tau: self.rise_function(t, tau, y0), 
+                        t_data_range, 
+                        y_data, 
+                        p0=[0.5], 
+                        bounds=(0.001, np.inf)
+                    )
+                    # 存储成功的拟合结果
+                    successful_fits[(peak_time, peak_value)] = {
+                        'rise_start_index': rise_start_index,
+                        'tau': popt[0],
+                        'y0': y0,
+                        't_data_range': t_data_range
+                    }
+                except (RuntimeError, ValueError):
+                    all_fits_successful = False
+                    break
 
-            try:
-                popt, pcov = curve_fit(lambda t, tau: self.rise_function(t, tau, y0), t_data_range, y_data, p0=[0.5], bounds=(0.001, np.inf))
-                tau_fitted = popt[0]
-                print(f"tau_fitted: {tau_fitted}")
-                t_fit = np.linspace(0, t_data_range[-1], 100)
-                y_fit = self.rise_function(t_fit, tau_fitted, y0)
+            if not all_fits_successful:
+                peak_to_valley_ratio += 0.05  # 增加比率并重试
 
-                # Clip the fitted curve to not exceed the peak value
-                valid_indices = np.where(y_fit <= peak_value)[0]
-                if len(valid_indices) > 0:
-                    t_fit = t_fit[valid_indices]
-                    y_fit = y_fit[valid_indices]
+        if not all_fits_successful:
+            messagebox.showwarning(title="Warning", message="Could not find suitable peak to valley ratio for all peaks.")
+            return
 
-                # Plot the fitted rise curve
-                rise_line, = self.ax.plot(self.time[rise_start_index] + t_fit, y_fit, 'r--', label=f'Rise Fit')   
-                self.rise_lines.append(rise_line)
-                self.rise_line_map[(peak_time, peak_value)] = rise_line
-                self.rise_times[(peak_time, peak_value)] = tau_fitted
-                self.rise_calculated[i] = True
-            except RuntimeError:
-                messagebox.showwarning(title="Warning", message=f"Rise fitting failed for peak at {peak_time}.")
+        # 更新peak_to_valley_ratio输入框
+        self.peak_to_valley_ratio_entry.delete(0, 'end')
+        self.peak_to_valley_ratio_entry.insert(0, f"{peak_to_valley_ratio:.3f}")
 
-        # Update the plot
+        # 清除之前的rise标记
+        for marker in self.rise_start_markers.values():
+            marker.remove()
+        self.rise_start_markers.clear()
+        
+        for line in self.rise_lines:
+            line.remove()
+        self.rise_lines.clear()
+        self.rise_line_map.clear()
+
+        # 绘制所有成功的拟合结果
+        for (peak_time, peak_value), fit_data in successful_fits.items():
+            # 添加rise起始点标记
+            rise_start_marker, = self.ax.plot(
+                self.time[fit_data['rise_start_index']], 
+                self.df_f[fit_data['rise_start_index']], 
+                'gx'
+            )
+            self.rise_start_markers[(peak_time, peak_value)] = rise_start_marker
+
+            # 绘制拟合曲线
+            t_fit = np.linspace(0, fit_data['t_data_range'][-1], 100)
+            y_fit = self.rise_function(t_fit, fit_data['tau'], fit_data['y0'])
+
+            # 限制拟合曲线不超过peak值
+            valid_indices = np.where(y_fit <= peak_value)[0]
+            if len(valid_indices) > 0:
+                t_fit = t_fit[valid_indices]
+                y_fit = y_fit[valid_indices]
+
+            rise_line, = self.ax.plot(
+                self.time[fit_data['rise_start_index']] + t_fit, 
+                y_fit, 
+                'r--'
+            )
+            self.rise_lines.append(rise_line)
+            self.rise_line_map[(peak_time, peak_value)] = rise_line
+            self.rise_times[(peak_time, peak_value)] = fit_data['tau']
+
+        # 更新rise_calculated状态
+        self.rise_calculated = [True] * len(self.marked_peaks)
+        
+        # 更新画布
         self.canvas.draw()
         messagebox.showinfo(title="Success", message="Rise time successfully calculated for all peaks.")
 
