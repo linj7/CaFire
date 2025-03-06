@@ -2,7 +2,7 @@
 
 CaFire is a Python-based software designed for calcium imaging data analysis. It provides an intuitive graphical user interface that enables automatic peak detection and analysis for both evoked and miniature events, making data interpretation more efficient and accurate.
 
-![CaFire GUI](assets/screenshots/CaFire_GUI.png)
+![CaFire GUI](./assets/screenshots/CaFire_GUI.png)
 
 ## Features
 
@@ -23,7 +23,7 @@ CaFire is a Python-based software designed for calcium imaging data analysis. It
   - Customizable interval settings
   - Export capabilities for analyzed segments
 
-![Partition Analysis](assets/screenshots/partition_analysis.png)
+![Partition Analysis](./assets/screenshots/partition_analysis.png)
 
 ## Installation
 
