@@ -42,20 +42,6 @@ venv.bak/
 Thumbs.db
 
 # Project specific
-*.log
-*.csv
-*.xlsx
-*.xls
-!example_data/*.xlsx  
-*.png
-*.jpg
-*.jpeg
-!assets/*.png  
-!assets/*.jpg
-!assets/*.jpeg
-!screenshots/*.png 
-!screenshots/*.jpg
-!screenshots/*.jpeg
 data/
 
 # Temporary files
