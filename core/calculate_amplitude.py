@@ -23,7 +23,7 @@ def calculate_amplitude(app):
                     # Get the parameters of the previous peak's decay curve
                     prev_decay_line = app.decay_line_map[(prev_peak_time, prev_peak_value)]
 
-                    # Decay function: 计算 decay curve 延伸到当前 peak 的值
+                    # Decay function: Calculate the decay curve value extended to the current peak
                     t_data_range = peak_index - prev_peak_index
                     prev_tau = app.tau_values[(prev_peak_time, prev_peak_value)]
                     prev_y0 = prev_peak_value
