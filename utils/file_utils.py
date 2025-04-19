@@ -170,7 +170,7 @@ def load_file(app):
                 app.df_f = app.df_f.fillna(0)
                 app.progress_bar.set(0.98)
             
-            if app.df_f.max() <= 1:
+            if 0 <= app.df_f.mean() <= 3:
                 app.convert_to_df_f = True
 
             calculate_baseline(app)
