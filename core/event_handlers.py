@@ -9,32 +9,19 @@ def handle_canvas_click(event, app):
         messagebox.showwarning(title="Warning", message="No data loaded. Please load data before interacting with the plot.")
         return
     if event.inaxes == app.ax:
-        if event.button == 1:  # Left click to add point
-            # Get the window size from the input box, default to 5 if not provided
-            if app.window_size is None:
-                window_size = 5
-            else:
-                window_size = int(app.window_size)
-
-            # Get the peak threshold from the input box, if provided
-            if app.manual_select_peak_threshold is None:
-                peak_threshold = None
-            else:
-                peak_threshold = float(app.manual_select_peak_threshold)
-
+        if event.button == 1:  # Left click to add point      
             # Find the nearest peak within a given window size
             x_clicked = event.xdata
 
             # Create a mask to find data points within the window
+            time_range = app.time.max() - app.time.min()
+            window_size = int(time_range * 0.002) 
             window_mask = (app.time >= x_clicked - window_size) & (app.time <= x_clicked + window_size)
             window_time = app.time[window_mask]
             window_df_f = app.df_f[window_mask]
             if len(window_time) > 1:
                 # Detect peaks within this subset, considering peak threshold if provided
-                if peak_threshold is not None:
-                    peaks, _ = find_peaks(window_df_f, height=peak_threshold)
-                else:
-                    peaks, _ = find_peaks(window_df_f)  # Adjust prominence based on data characteristics
+                peaks, _ = find_peaks(window_df_f)  # Adjust prominence based on data characteristics
 
                 # If any peaks were found in the window
                 if len(peaks) > 0:
