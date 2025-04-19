@@ -32,10 +32,6 @@ def calculate_rise(app, single_peak=None):
     baseline_lower = baseline_mean - 8 * baseline_std
     baseline_upper = baseline_mean + 2 * baseline_std
 
-    # Detect data magnitude
-    data_range = np.max(app.df_f) - np.min(app.df_f)
-    use_signal_amplification = data_range < 0.01
-
     for i, (peak_time, peak_value) in peaks_to_process:
         if app.rise_calculated[i]:
             continue
@@ -102,8 +98,8 @@ def calculate_rise(app, single_peak=None):
         app.baseline_values[peak_index] = rise_start_value
 
         # Prepare fitting data
-        t_data = np.arange(rise_start_index, peak_index + 1)
-        t_data_range = t_data - rise_start_index
+        t_data = app.time[rise_start_index:peak_index + 1].values  # Use actual time values
+        t_data_range = t_data - t_data[0]  # Make time start from 0
         y_data_original = np.array(app.df_f[rise_start_index:peak_index + 1])
         
         # Handle the case where the starting point is 0, NaN, or negative
@@ -124,48 +120,38 @@ def calculate_rise(app, single_peak=None):
         y0_original = y_data_original[0]
 
         try:
-            if use_signal_amplification:
-                # Signal amplification processing
-                # Detect data range
-                data_range = np.max(y_data_original) - np.min(y_data_original)
-                
-                # Calculate the amplification factor - the goal is to amplify the data to the 0.1 magnitude
-                scaling_factor = 1.0
-                if data_range < 0.01:
-                    scaling_factor = 0.1 / data_range
-                
-                # Amplify the data
-                y_data_amplified = y_data_original * scaling_factor
-                y0_amplified = y0_original * scaling_factor
-                
-                # Use the amplified data for fitting
-                popt, _ = curve_fit(
-                    lambda t, tau: rise_function(t, tau, y0_amplified), 
-                    t_data_range, 
-                    y_data_amplified, 
-                    p0=[0.5], 
-                    bounds=(0.0001, np.inf)  # Lower the lower limit to adapt to faster rise
-                )
-                
-                # When drawing the fitting curve, you need to shrink the y value back to the original magnitude
-                t_fit = np.linspace(0, t_data_range[-1], 100)
-                y_fit_amplified = rise_function(t_fit, popt[0], y0_amplified)
-                y_fit = y_fit_amplified / scaling_factor
-            else:
-                # Use the original method for fitting
-                y0 = max(y0_original, 0.001)  # Ensure y0 is not 0, use a smaller value of 0.001
-                
-                popt, _ = curve_fit(
-                    lambda t, tau: rise_function(t, tau, y0), 
-                    t_data_range, 
-                    y_data_original, 
-                    p0=[0.5], 
-                    bounds=(0.001, np.inf)  # Lower the lower limit to adapt to faster rise
-                )
-                
-                # Draw the fitting curve
-                t_fit = np.linspace(0, t_data_range[-1], 100)
-                y_fit = rise_function(t_fit, popt[0], y0)
+            # Ensure y0 is not 0, use a smaller value of 0.001
+            y0 = max(y0_original, 0.001)
+
+            # Calculate scaling factors for normalization
+            t_scale = t_data_range.max()
+            y_scale = np.max(y_data_original) - np.min(y_data_original)
+            if y_scale < 0.01:
+                y_scale = 0.01
+
+            # Normalize both time and y data
+            t_norm = t_data_range / t_scale
+            y_data_norm = y_data_original / y_scale
+            y0_norm = y0 / y_scale
+
+            # Fit using normalized data
+            popt, _ = curve_fit(
+                lambda t, tau_norm: rise_function(t * t_scale, tau_norm * t_scale, y0_norm),
+                t_norm,
+                y_data_norm,
+                p0=[0.5],
+                bounds=(0.0001, np.inf)
+            )
+
+            # Convert normalized tau back to real scale
+            tau_fitted = popt[0] * t_scale
+
+            # Generate fitting curve using real time scale
+            t_fit = np.linspace(0, t_data_range[-1], 100)
+            y_fit_norm = rise_function(t_fit, tau_fitted, y0_norm)
+            
+            # Scale y values back to original magnitude
+            y_fit = y_fit_norm * y_scale
             
             # If there was an offset, now you need to shift the fitting result back
             if is_negative_start:
@@ -193,7 +179,7 @@ def calculate_rise(app, single_peak=None):
                 y_fit = y_fit[valid_indices]
 
             rise_line, = app.ax.plot(
-                app.time[rise_start_index] + t_fit, 
+                t_data[0] + t_fit,  # Use actual starting time
                 y_fit, 
                 color='#00FF00', 
                 linestyle='--'
