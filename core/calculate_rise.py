@@ -1,10 +1,7 @@
-# core/calculate_rise.py
 import numpy as np
-from scipy.optimize import curve_fit
 from tkinter import messagebox
-import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
 from core.calculate_baseline import calculate_baseline
-
 
 def rise_function(t, tau, y0_baseline):
     """
@@ -30,7 +27,7 @@ def calculate_rise(app, single_peak=None):
     baseline_mean = np.mean(app.baseline_values)
     baseline_std = np.std(app.baseline_values)
     baseline_lower = baseline_mean - 8 * baseline_std
-    baseline_upper = baseline_mean + 2 * baseline_std
+    baseline_upper = baseline_mean 
 
     for i, (peak_time, peak_value) in peaks_to_process:
         if app.rise_calculated[i]:
@@ -38,7 +35,6 @@ def calculate_rise(app, single_peak=None):
 
         peak_index = app.time[app.time == peak_time].index[0]
         rise_start_index = None
-        rise_end_index = peak_index
 
         if rise_start_index is None:
             prev_peak_time, _ = app.marked_peaks[i - 1] if i > 0 else (None, None)
