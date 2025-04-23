@@ -229,7 +229,7 @@ def update_table(app):
             f"{int(peak_time)}",
             f"{peak_value:.6f}",
             f"{rise_time:.6f}" if isinstance(rise_time, float) else rise_time,
-            f"{decay_time * 16.75:.6f}" if isinstance(decay_time, float) else decay_time,
+            f"{decay_time:.6f}" if isinstance(decay_time, float) else decay_time,
             f"{baseline:.6f}" if isinstance(baseline, float) else baseline,
             f"{delta_f_f:.6f}" if isinstance(delta_f_f, float) else delta_f_f
         ))

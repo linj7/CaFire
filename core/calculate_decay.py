@@ -1,8 +1,6 @@
-# core/calculate_decay.py
 import numpy as np
-from scipy.optimize import curve_fit
 from tkinter import messagebox
-import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
 
 def decay_function(t, tau, y0):
     """
@@ -39,7 +37,7 @@ def calculate_decay(app, single_peak=None):
         # Calculate the standard deviation range of the baseline
         baseline_mean = np.mean(app.baseline_values)
         baseline_std = np.std(app.baseline_values)
-        baseline_range = (baseline_mean - 2 * baseline_std, baseline_mean + 2 * baseline_std)
+        baseline_range = (baseline_mean - 2 * baseline_std, baseline_mean)
 
         # Find the first point in the range between the current peak and the next peak that is in the baseline range
         search_range = app.df_f[current_peak_index:next_peak_index]
@@ -54,23 +52,60 @@ def calculate_decay(app, single_peak=None):
             min_index_between_peaks = np.argmin(search_range) + current_peak_index
 
         # Prepare data for fitting
-        t_data = np.arange(current_peak_index, min_index_between_peaks + 1)
-        y_data = app.df_f[current_peak_index:min_index_between_peaks + 1]
-        y_data = np.array(y_data)
-        y0 = y_data[0]
-        t_data_range = t_data - current_peak_index
+        t_data = app.time[current_peak_index:min_index_between_peaks + 1].values
+        t_data_range = t_data - t_data[0]  # Make time start from 0
+        y_data_original = np.array(app.df_f[current_peak_index:min_index_between_peaks + 1])
+        
+        # Ensure initial value is valid
+        y0 = y_data_original[0]
+        if np.isnan(y0) or y0 == 0:
+            y0 = 0.001
 
         # Fit decay function
         try:
-            popt, pcov = curve_fit(lambda t, tau: decay_function(t, tau, y0), t_data_range, y_data, p0=[0.5], bounds=(0.001, np.inf))
-            tau_fitted = popt[0]
-            t_fit = t_data_range
-            y_fit = decay_function(t_fit, tau_fitted, y0)
-            decay_line, = app.ax.plot(app.time[current_peak_index:min_index_between_peaks + 1], y_fit, color='#FF00FF', linestyle='--')
+            # Calculate scaling factors for normalization
+            t_scale = t_data_range.max()
+            y_scale = np.max(y_data_original) - np.min(y_data_original)
+            if y_scale < 0.01:
+                y_scale = 0.01
+                
+            # Normalize both time and y data
+            t_norm = t_data_range / t_scale
+            y_data_norm = y_data_original / y_scale
+            y0_norm = y0 / y_scale
+            
+            # Fit using normalized data
+            popt, _ = curve_fit(
+                lambda t, tau_norm: decay_function(t * t_scale, tau_norm * t_scale, y0_norm),
+                t_norm,
+                y_data_norm,
+                p0=[0.5],
+                bounds=(0.0001, np.inf)
+            )
+            
+            # Convert normalized tau back to real scale
+            tau_fitted = popt[0] * t_scale
+            
+            # Generate fitting curve using real time scale
+            t_fit = np.linspace(0, t_data_range[-1], 100)
+            y_fit_norm = decay_function(t_fit, tau_fitted, y0_norm)
+            
+            # Scale y values back to original magnitude
+            y_fit = y_fit_norm * y_scale
+            
+            # Plot fitting curve
+            decay_line, = app.ax.plot(
+                t_data[0] + t_fit,  # Add back actual starting time
+                y_fit,
+                color='#FF00FF',
+                linestyle='--'
+            )
+            
             app.decay_lines.append(decay_line)
             app.decay_line_map[(current_peak_time, current_peak_value)] = decay_line
             app.tau_values[(current_peak_time, current_peak_value)] = tau_fitted
             app.decay_calculated[i] = True
+
             # Update progress
             if not single_peak:
                 progress = 0.7 + (0.3 * (i + 1) / total_peaks)
@@ -79,6 +114,5 @@ def calculate_decay(app, single_peak=None):
             app.canvas.draw()
         except RuntimeError:
             messagebox.showwarning(title="Warning", message=f"Decay fitting failed for peak at {current_peak_time}.")
-    # messagebox.showinfo(title="Success", message="Decay time successfully calculated for all peaks.")
-        
+ 
         app.update_table()  # Update table
