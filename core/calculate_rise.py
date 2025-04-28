@@ -11,7 +11,7 @@ def rise_function(t, tau, y0_baseline):
     return y0_baseline * np.exp(t / tau)
 
 
-def calculate_rise(app, single_peak=None):
+def calculate_rise(app, single_peak=None, no_draw=False):
     calculate_baseline(app)
     total_peaks = len(app.marked_peaks)
 
@@ -24,10 +24,17 @@ def calculate_rise(app, single_peak=None):
     else:
         peaks_to_process = list(enumerate(app.marked_peaks))
 
+    peak_onset_window = int(app.last_peak_onset_window) if app.last_peak_onset_window else None
+    peak_values = [peak[1] for peak in app.marked_peaks]
+    mean_peak_value = np.mean(peak_values)
     baseline_mean = np.mean(app.baseline_values)
     baseline_std = np.std(app.baseline_values)
     baseline_lower = baseline_mean - 8 * baseline_std
-    baseline_upper = baseline_mean 
+    ratio = (mean_peak_value - baseline_mean) / baseline_std
+    if (ratio <= 10):
+        baseline_upper = baseline_mean
+    else:
+        baseline_upper = baseline_mean + 2 * baseline_std
 
     for i, (peak_time, peak_value) in peaks_to_process:
         if app.rise_calculated[i]:
@@ -89,6 +96,22 @@ def calculate_rise(app, single_peak=None):
                     app.canvas.draw()
                     app.update_table()
                     continue
+        
+        
+        if (peak_onset_window is not None):
+            # Find all local minima within the window
+            local_mins = []
+            for j in range(peak_index - peak_onset_window + 1, peak_index - 1):
+                if app.df_f[j] < app.df_f[j-1] and app.df_f[j] < app.df_f[j+1]:
+                    local_mins.append(j)
+            
+            # If local minima are found, select the index of the smallest value
+            if local_mins:
+                min_values = [app.df_f[idx] for idx in local_mins]
+                rise_start_index = local_mins[np.argmin(min_values)]
+            else:
+                # If no local minima are found, use the minimum value point in the window
+                rise_start_index = peak_index - peak_onset_window + np.argmin(app.df_f[peak_index - peak_onset_window:peak_index])
 
         rise_start_value = app.df_f[rise_start_index]
         app.baseline_values[peak_index] = rise_start_value
@@ -97,7 +120,8 @@ def calculate_rise(app, single_peak=None):
         t_data = app.time[rise_start_index:peak_index + 1].values  # Use actual time values
         t_data_range = t_data - t_data[0]  # Make time start from 0
         y_data_original = np.array(app.df_f[rise_start_index:peak_index + 1])
-        
+
+
         # Handle the case where the starting point is 0, NaN, or negative
         start_value = y_data_original[0]
         
@@ -148,6 +172,12 @@ def calculate_rise(app, single_peak=None):
             
             # Scale y values back to original magnitude
             y_fit = y_fit_norm * y_scale
+
+            # Force the starting point to be equal
+            if len(y_fit) > 0:
+                y_fit[0] = app.df_f[rise_start_index]
+                if is_negative_start:
+                    y_fit[0] = app.df_f[rise_start_index] + offset
             
             # If there was an offset, now you need to shift the fitting result back
             if is_negative_start:
@@ -173,16 +203,46 @@ def calculate_rise(app, single_peak=None):
             if len(valid_indices) > 0:
                 t_fit = t_fit[valid_indices]
                 y_fit = y_fit[valid_indices]
+            
+            # Add a Bezier curve to the peak
+            if len(t_fit) > 0 and y_fit[-1] < peak_value:
+                def bezier_curve(P0, P1, P2, num=30):
+                    t = np.linspace(0, 1, num)
+                    curve_x = (1-t)**2 * P0[0] + 2*(1-t)*t * P1[0] + t**2 * P2[0]
+                    curve_y = (1-t)**2 * P0[1] + 2*(1-t)*t * P1[1] + t**2 * P2[1]
+                    return curve_x, curve_y
 
+                # The last point of the fitting curve
+                P0 = (t_data[0] + t_fit[-1], y_fit[-1])
+                # Control point - horizontal extension
+                P1 = (peak_time, y_fit[-1])
+                # Peak point
+                P2 = (peak_time, peak_value)
+
+                bx, by = bezier_curve(P0, P1, P2, num=20)
+                
+                # Ensure the Bezier curve is smoothly connected to the fitting curve
+                # Remove the first point of the Bezier curve to avoid repetition
+                bx = bx[1:]
+                by = by[1:]
+                
+                # Combine the fitting curve and the Bezier curve
+                combined_x = np.concatenate([t_data[0] + t_fit, bx])
+                combined_y = np.concatenate([y_fit, by])
+            else:
+                combined_x = t_data[0] + t_fit
+                combined_y = y_fit
+
+            # Plot the combined rise curve
             rise_line, = app.ax.plot(
-                t_data[0] + t_fit,  # Use actual starting time
-                y_fit, 
-                color='#00FF00', 
+                combined_x,
+                combined_y,
+                color='#00FF00',
                 linestyle='--'
             )
             app.rise_lines.append(rise_line)
             app.rise_line_map[(peak_time, peak_value)] = rise_line
-            app.rise_times[(peak_time, peak_value)] = popt[0]
+            app.rise_times[(peak_time, peak_value)] = tau_fitted
             app.rise_calculated[i] = True
             
             # Update progress
@@ -191,7 +251,8 @@ def calculate_rise(app, single_peak=None):
                 app.progress_bar.set(progress)
                 app.update()  # Force update GUI
             
-            if single_peak:
+            # Only draw immediately when not delaying
+            if single_peak and not no_draw:
                 app.canvas.draw()
                 app.update_table()
                 
@@ -203,7 +264,150 @@ def calculate_rise(app, single_peak=None):
                 return False
 
     if not single_peak:
+        process_abnormal_tau_values(app)
         app.canvas.draw()
         app.update_table()
     
+    if single_peak:
+        process_abnormal_tau_values(app, single_peak)
+        
     return True
+
+# Define the function to process abnormal tau values
+def process_abnormal_tau_values(app, single_peak=None):
+    """Process abnormal tau values, use Bezier curve and 63.2% method to recalculate"""
+    # Calculate the average and standard deviation of all valid tau values
+    valid_taus = [tau for tau in app.rise_times.values() if isinstance(tau, (int, float))]
+    if len(valid_taus) < 3:  # Ensure there are enough samples to calculate the standard deviation
+        return
+        
+    tau_average = np.mean(valid_taus)
+    tau_std = np.std(valid_taus)
+    
+    # Determine the peaks that need to be processed
+    outlier_peaks = []
+    if single_peak:
+        # Only check if the current peak being processed is abnormal
+        peak_time, peak_value = single_peak
+        tau = app.rise_times.get((peak_time, peak_value))
+        if isinstance(tau, (float, int)) and (tau < tau_average - 2*tau_std or tau > tau_average + 2*tau_std):
+            outlier_peaks.append(single_peak)
+    else:
+        # Check all peaks
+        for peak, tau in list(app.rise_times.items()):
+            if isinstance(tau, (float, int)) and (tau < tau_average - 2*tau_std or tau > tau_average + 2*tau_std):
+                outlier_peaks.append(peak)
+    
+    # Process each abnormal peak
+    for peak in outlier_peaks:
+        peak_time, peak_value = peak
+        
+        try:
+            # Find the corresponding index
+            i = app.marked_peaks.index(peak)
+            peak_index = app.time[app.time == peak_time].index[0]
+            
+            # Find the rise start point of this peak
+            rise_marker = app.rise_start_markers.get(peak)
+            if rise_marker:
+                rise_x_data = rise_marker.get_xdata()[0]
+                rise_start_index = app.time[app.time == rise_x_data].index[0]
+                
+                # Delete the existing fitting line
+                if peak in app.rise_line_map:
+                    existing_line = app.rise_line_map[peak]
+                    if existing_line in app.rise_lines:
+                        app.rise_lines.remove(existing_line)
+                    existing_line.remove()
+                    app.rise_line_map.pop(peak)
+                    
+                # Prepare data
+                t_data = app.time[rise_start_index:peak_index + 1].values
+                y_data = app.df_f[rise_start_index:peak_index + 1].values
+                
+                # Use Bezier curve to connect onset and peak
+                def bezier_curve_multi(points, num=100):
+                    """Create a multi-point Bezier curve"""
+                    n = len(points) - 1
+                    t = np.linspace(0, 1, num)
+                    curve_x = np.zeros(num)
+                    curve_y = np.zeros(num)
+                    
+                    for i, point in enumerate(points):
+                        # Calculate the Bernstein polynomial
+                        binomial = np.math.comb(n, i)
+                        curve_x += binomial * (1-t)**(n-i) * t**i * point[0]
+                        curve_y += binomial * (1-t)**(n-i) * t**i * point[1]
+                    
+                    return curve_x, curve_y
+
+                # Create control points
+                control_points = []
+                # Add the starting point
+                control_points.append((t_data[0], y_data[0]))
+
+                # Add control points between data points
+                if len(t_data) > 2:
+                    # Take several key points as control points
+                    sample_indices = np.linspace(1, len(t_data) - 2, min(5, len(t_data) - 2)).astype(int)
+                    for idx in sample_indices:
+                        control_points.append((t_data[idx], y_data[idx]))
+
+                # Add the ending point
+                control_points.append((t_data[-1], y_data[-1]))
+
+                # Generate the Bezier curve
+                t_smooth, y_smooth = bezier_curve_multi(control_points, num=100)
+                
+                # Calculate the new tau value: use the 63.2% rise time method
+                y0 = y_data[0]
+                y_peak = y_data[-1]
+                # Calculate the y value of the 63.2% point
+                y63 = y0 + 0.632 * (y_peak - y0)
+                
+                # Find the first point on the smoothed Bezier curve that is greater than or equal to y63
+                target_indices = np.where(y_smooth >= y63)[0]
+                if len(target_indices) > 0:
+                    target_idx = target_indices[0]
+                    
+                    # If it is not the first point and needs more accurate interpolation
+                    if target_idx > 0:
+                        # Find the two points before and after y63
+                        t_before, y_before = t_smooth[target_idx-1], y_smooth[target_idx-1]
+                        t_after, y_after = t_smooth[target_idx], y_smooth[target_idx]
+                        
+                        # Linear interpolation to find a more accurate t63
+                        if y_after != y_before:  # Avoid division by zero
+                            fraction = (y63 - y_before) / (y_after - y_before)
+                            t63 = t_before + fraction * (t_after - t_before)
+                        else:
+                            t63 = t_after
+                    else:
+                        t63 = t_smooth[target_idx]
+                        
+                    tau_new = t63 - t_data[0]
+                else:
+                    # If no suitable point is found, use the default value
+                    tau_new = 0.5 * (t_data[-1] - t_data[0])
+                
+                # Draw the new fitting curve
+                new_line, = app.ax.plot(
+                    t_smooth, 
+                    y_smooth, 
+                    color='#00FF00', 
+                    linestyle='--'
+                )
+                
+                # Update the application state
+                app.rise_lines.append(new_line)
+                app.rise_line_map[(peak_time, peak_value)] = new_line
+                app.rise_times[(peak_time, peak_value)] = tau_new
+                
+        except (ValueError, IndexError) as e:
+            print(f"Error reprocessing peak {peak}: {e}")
+            continue
+    
+    # Update the canvas and table (only needed in single_peak mode)
+    if single_peak:
+        app.canvas.draw()
+        app.update_table()

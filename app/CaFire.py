@@ -15,7 +15,6 @@ from core.apply_threshold import apply_threshold
 from core.calculate_rise import calculate_rise
 from core.calculate_decay import calculate_decay
 from core.calculate_baseline import calculate_baseline
-from core.calculate_amplitude import calculate_amplitude
 
 class App(customtkinter.CTk):
     def __init__(self):
@@ -27,6 +26,7 @@ class App(customtkinter.CTk):
         if self.time is None or self.df_f is None:
             messagebox.showwarning(title="Warning", message="No data loaded.")
             return
+        
         self.progress_bar.set(0)
 
         # Step 1: Apply threshold to find all peaks

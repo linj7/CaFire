@@ -28,6 +28,7 @@ class LoadFileDialog(customtkinter.CTkToplevel):
         self.x_col = default_x_col
         self.y_col = default_y_col
         self.user_cancelled = False
+        self.evoked_status = None
 
         # Create title label
         self.title_label = customtkinter.CTkLabel(
@@ -184,6 +185,7 @@ class LoadFileDialog(customtkinter.CTkToplevel):
         self.sheet_name = self.entry_sheet.get().strip()  
         self.x_col = self.entry_x_col.get().strip() 
         self.y_col = self.entry_y_col.get().strip() 
+        self.evoked_status = self.evoked_var.get()
         if not self.sheet_name or not self.x_col or not self.y_col:
             messagebox.showwarning(title="Warning", message="All fields must be filled out.", parent=self)
             return
@@ -528,10 +530,10 @@ class PartitionEvokedDialog(customtkinter.CTkToplevel):
             messagebox.showerror("Error", f"Error exporting data:\n{str(e)}")
 
 class DetectPeaksDialog(customtkinter.CTkToplevel):
-    def __init__(self, parent, peak_threshold="", min_distance="", width=""):
+    def __init__(self, parent, peak_threshold="", min_distance="", width="", peak_onset_window=""):
         super().__init__(parent)
         self.title("Peak Detection")  # Modify dialog title
-        self.geometry("250x400")
+        self.geometry("250x530")
 
         set_window_style(self)
         set_window_icon(self)
@@ -544,6 +546,7 @@ class DetectPeaksDialog(customtkinter.CTkToplevel):
         self.peak_threshold = None
         self.min_distance = None
         self.width = None
+        self.peak_onset_window = None
         self.user_cancelled = False
 
         # Peak Height (Required)
@@ -612,6 +615,28 @@ class DetectPeaksDialog(customtkinter.CTkToplevel):
         self.entry_width.insert(0, width)
         self.entry_width.pack(pady=(5, 10), padx=20, anchor="w")
 
+        # Peak Onset Window
+        self.label_peak_onset_window = customtkinter.CTkLabel(
+            self,
+            text="Peak onset window",
+            font=customtkinter.CTkFont(size=12),
+            anchor="w"
+        )
+        self.label_peak_onset_window.pack(pady=(5, 0), padx=20, anchor="w")
+
+        self.label_peak_onset_window_desc = customtkinter.CTkLabel(
+            self,
+            text="Window size for onset search",
+            font=customtkinter.CTkFont(size=10),
+            text_color="gray",
+            anchor="w"
+        )
+        self.label_peak_onset_window_desc.pack(pady=(0, 0), padx=20, anchor="w")
+        
+        self.entry_peak_onset_window = customtkinter.CTkEntry(self, width=200)
+        self.entry_peak_onset_window.insert(0, peak_onset_window)
+        self.entry_peak_onset_window.pack(pady=(5, 10), padx=20, anchor="w")
+        
         detect_peaks_icon = load_svg_image('assets/magnifier.svg', width=24, height=24)
         detect_peaks_icon_ctk = customtkinter.CTkImage(
             light_image=detect_peaks_icon,
@@ -638,6 +663,7 @@ class DetectPeaksDialog(customtkinter.CTkToplevel):
         self.peak_threshold = self.entry_threshold.get()
         self.min_distance = self.entry_distance.get()
         self.width = self.entry_width.get()
+        self.peak_onset_window = self.entry_peak_onset_window.get()
 
         if not self.peak_threshold:
             messagebox.showwarning(title="Warning", message="Peak height is required.", parent=self)

@@ -1,4 +1,3 @@
-import os
 import openpyxl
 import traceback
 import numpy as np
@@ -53,6 +52,7 @@ def load_file(app):
         x_col = load_file_dialog.x_col
         y_col = load_file_dialog.y_col
         app.convert_to_df_f = load_file_dialog.convert_to_df_f     
+        app.evoked_status = load_file_dialog.evoked_status
 
         if not sheet_name or not x_col or not y_col:
             messagebox.showwarning(title="Warning", message="All fields must be filled out.")
@@ -62,11 +62,6 @@ def load_file(app):
         app.last_sheet_name = sheet_name
         app.last_x_col = x_col
         app.last_y_col = y_col
-        
-        if isinstance(app.evoked_var, str):
-            app.evoked_var = customtkinter.StringVar(value="off")
-        else:
-            app.evoked_var.set("off")
 
         # Use the file dialog to select a file
         file_path = filedialog.askopenfilename()
@@ -160,7 +155,7 @@ def load_file(app):
             app.time = pd.Series(app.time)
             app.df_f = pd.Series(app.df_f)
             
-            if app.convert_to_df_f:
+            if app.convert_to_df_f and app.df_f.mean() > 3:
                 # Calculate baseline
                 calculate_baseline(app)
                 

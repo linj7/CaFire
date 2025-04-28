@@ -60,7 +60,6 @@ def setup_ui(app):
     # Bind navigation controls
     setup_navigation_controls(app)
     
-
 def setup_button_frame(app):
     """Set up the top button frame with control buttons"""
     app.button_frame = customtkinter.CTkFrame(app)
@@ -349,7 +348,7 @@ def setup_table_frame(app):
     # Create treeview
     app.tree = ttk.Treeview(
         app.tree_frame,
-        columns=("Time", "Value", "Rise Time", "Decay Time", "Baseline", "ΔF/F"),
+        columns=("Time", "ΔF/F", "Rise Time", "Decay Time", "Baseline"),
         show="tree headings",
         height=8,
         selectmode="extended"

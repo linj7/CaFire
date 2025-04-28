@@ -8,7 +8,7 @@ def decay_function(t, tau, y0):
     """
     return y0 * np.exp(-t / tau)
 
-def calculate_decay(app, single_peak=None):
+def calculate_decay(app, single_peak=None, no_draw=False):
     total_peaks = len(app.marked_peaks)
 
     # Sort marked peaks by time
@@ -20,6 +20,20 @@ def calculate_decay(app, single_peak=None):
         peaks_to_process = [(peak_index, single_peak)]
     else:
         peaks_to_process = list(enumerate(app.marked_peaks))
+
+    # Calculate the standard deviation range of the baseline
+    baseline_mean = np.mean(app.baseline_values)
+    baseline_std = np.std(app.baseline_values)
+    peak_values = [peak[1] for peak in app.marked_peaks]
+    mean_peak_value = np.mean(peak_values)
+    ratio = (mean_peak_value - baseline_mean) / baseline_std
+    if (ratio <= 5):
+        baseline_upper = baseline_mean
+    elif (ratio > 5 and ratio <= 10):
+        baseline_upper = baseline_mean + baseline_std
+    else:
+        baseline_upper = baseline_mean + 2 * baseline_std
+    baseline_range = (baseline_mean - 2 * baseline_std, baseline_upper)
 
     for i, (current_peak_time, current_peak_value) in peaks_to_process:
         # Skip if decay has already been calculated for this peak
@@ -33,11 +47,6 @@ def calculate_decay(app, single_peak=None):
             next_peak_index = app.time[app.time == app.marked_peaks[i + 1][0]].index[0]
         else:
             next_peak_index = len(app.df_f)
-
-        # Calculate the standard deviation range of the baseline
-        baseline_mean = np.mean(app.baseline_values)
-        baseline_std = np.std(app.baseline_values)
-        baseline_range = (baseline_mean - 2 * baseline_std, baseline_mean)
 
         # Find the first point in the range between the current peak and the next peak that is in the baseline range
         search_range = app.df_f[current_peak_index:next_peak_index]
@@ -111,8 +120,12 @@ def calculate_decay(app, single_peak=None):
                 progress = 0.7 + (0.3 * (i + 1) / total_peaks)
                 app.progress_bar.set(progress)
                 app.update()  # Force update GUI
-            app.canvas.draw()
+            
+            # 只有在不需要延迟绘图时才立即绘制
+            if not no_draw:
+                app.canvas.draw()
         except RuntimeError:
             messagebox.showwarning(title="Warning", message=f"Decay fitting failed for peak at {current_peak_time}.")
  
-        app.update_table()  # Update table
+        if not no_draw:
+            app.update_table()  # Update table

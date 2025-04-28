@@ -5,7 +5,7 @@ Contains functions for handling table selection, copying, exporting, and event h
 import pandas as pd
 from PIL import Image, ImageDraw, ImageTk
 from tkinter import messagebox, filedialog
-from core.calculate_decay import calculate_decay
+from core.calculate_decay import calculate_decay, decay_function
 
 def get_checkbox_image(app, checked=False):
     """
@@ -120,7 +120,21 @@ def export_selected_data(app):
         
         for item in checked_items:
             values = app.tree.item(item)["values"]
-            data.append(values)
+            # Convert numeric strings to float/int
+            converted_values = []
+            for value in values:
+                try:
+                    # Try converting to float first
+                    num = float(value)
+                    # If it's a whole number, convert to int
+                    if num.is_integer():
+                        converted_values.append(int(num))
+                    else:
+                        converted_values.append(num)
+                except (ValueError, TypeError):
+                    # If conversion fails, keep original value
+                    converted_values.append(value)
+            data.append(converted_values)
         
         df = pd.DataFrame(data, columns=columns)
         
@@ -206,32 +220,64 @@ def update_table(app):
     for item in app.tree.get_children():
         app.tree.delete(item)
     
-    # Get all peaks data and sort
+    # Sort marked peaks by time
+    app.marked_peaks = sorted(app.marked_peaks, key=lambda peak: peak[0])
+
+    # Calculate the average distance between all peaks
+    if len(app.marked_peaks) > 1:
+        peak_distances = [app.marked_peaks[i+1][0] - app.marked_peaks[i][0] for i in range(len(app.marked_peaks) - 1)]
+        avg_peak_distance = sum(peak_distances) / len(peak_distances)
+    else:
+        avg_peak_distance = 0
+    # print(avg_peak_distance)
+
     peaks_data = []
     for peak_time, peak_value in app.marked_peaks:
         rise_time = app.rise_times.get((peak_time, peak_value), "N/A")
         decay_time = app.tau_values.get((peak_time, peak_value), "N/A")
         
-        # Get the baseline
         peak_index = app.time[app.time == peak_time].index[0]
         if app.baseline_values is not None and peak_index < len(app.baseline_values):
             baseline = app.baseline_values[peak_index]
-            # Calculate ΔF/F
-            if app.convert_to_df_f == True:
-                delta_f_f = peak_value
-            else: 
-                delta_f_f = (peak_value - baseline) / baseline
+
+            if app.evoked_status == "on":
+                # Get the index of current peak in marked_peaks
+                current_peak_idx = app.marked_peaks.index((peak_time, peak_value))
+                
+                # If there is a previous peak
+                if current_peak_idx > 0 and peak_time - app.marked_peaks[current_peak_idx-1][0] < avg_peak_distance:
+                    prev_peak_time, prev_peak_value = app.marked_peaks[current_peak_idx - 1]
+
+                    # Check if there is a previous decay curve
+                    if (prev_peak_time, prev_peak_value) in app.decay_line_map:
+                        # Decay function: Calculate the decay curve value extended to the current peak
+                        time_diff = peak_time - prev_peak_time
+                        prev_tau = app.tau_values[(prev_peak_time, prev_peak_value)]
+                        decay_value = decay_function(time_diff, prev_tau, prev_peak_value)
+                        if app.convert_to_df_f == True:
+                            delta_f_f = peak_value - decay_value
+                        else: 
+                            delta_f_f = (peak_value - decay_value) / decay_value
+                else:
+                    if app.convert_to_df_f == True:
+                        delta_f_f = peak_value
+                    else: 
+                        delta_f_f = (peak_value - baseline) / baseline
+            else:
+                if app.convert_to_df_f == True:
+                    delta_f_f = peak_value
+                else: 
+                    delta_f_f = (peak_value - baseline) / baseline
         else:
             baseline = "N/A"
             delta_f_f = "N/A"
 
         peaks_data.append((
             f"{int(peak_time)}",
-            f"{peak_value:.6f}",
+            f"{delta_f_f:.6f}" if isinstance(delta_f_f, float) else delta_f_f,
             f"{rise_time:.6f}" if isinstance(rise_time, float) else rise_time,
             f"{decay_time:.6f}" if isinstance(decay_time, float) else decay_time,
-            f"{baseline:.6f}" if isinstance(baseline, float) else baseline,
-            f"{delta_f_f:.6f}" if isinstance(delta_f_f, float) else delta_f_f
+            f"{baseline:.6f}" if isinstance(baseline, float) else baseline
         ))
     
     # Sort by time
@@ -256,7 +302,6 @@ def recalculate_column(app):
         app.update_table()
         messagebox.showinfo("Success", "Decay Time recalculated successfully.")
         app.after(500, lambda: app.progress_bar.set(0))
-
 
 def apply_table_operations(app_class):
     """

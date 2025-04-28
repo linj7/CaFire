@@ -9,7 +9,8 @@ def apply_threshold(app):
             app, 
             peak_threshold=app.last_peak_threshold,
             min_distance=app.last_min_distance,
-            width=app.last_width
+            width=app.last_width,
+            peak_onset_window=app.last_peak_onset_window
         )
         
         # Bind the main window destroy event
@@ -34,7 +35,8 @@ def apply_threshold(app):
                 app.last_peak_threshold = dialog.peak_threshold
                 app.last_min_distance = dialog.min_distance  # Save original input, not using default value
                 app.last_width = dialog.width  # Save original input, not using default value
-
+                app.last_peak_onset_window = dialog.peak_onset_window
+                
                 # Process optional parameters, set default values
                 min_distance = float(dialog.min_distance) if dialog.min_distance else 4
                 width = float(dialog.width) if dialog.width else 4

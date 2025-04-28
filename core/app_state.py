@@ -1,4 +1,3 @@
-import numpy as np
 import customtkinter
 
 def initialize_data_state(app):
@@ -55,7 +54,7 @@ def initialize_parameters(app):
     app.peak_num = None
     app.window_size = None
     app.manual_select_peak_threshold = None
-    app.evoked_var = customtkinter.StringVar(value="off")  
+    app.evoked_status = None
 
 def initialize_last_used_values(app):
     """
@@ -69,6 +68,7 @@ def initialize_last_used_values(app):
     app.last_y_col = ""
     app.last_peak_threshold = ""
     app.last_min_distance = ""
+    app.last_peak_onset_window = ""
     app.last_peak_num = "" 
     app.last_interval_size = ""
     app.last_offset = ""
