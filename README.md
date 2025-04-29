@@ -30,7 +30,7 @@ CaFire is a Python-based software designed for calcium imaging data analysis. It
 1. Download the latest release from the [releases page](https://github.com/linj7/CaFire/releases)
 2. Run the executable file (no installation required)
 
-Or build from source:
+Or run from source code:
 
 ```bash
 # Clone the repository
@@ -42,6 +42,14 @@ pip install -r requirements.txt
 # Run the application
 python main.py
 ```
+
+Or build into an exe file and execute:
+
+```bash
+pyinstaller CaFire.spec
+```
+
+
 
 ## Requirements
 
