@@ -1,19 +1,17 @@
 import numpy as np
 import pandas as pd
-import sys
-import os
 import customtkinter
 from tkinter import filedialog, messagebox
 from utils.image_utils import load_svg_image
 from ui.window import set_window_style, set_window_icon
 
 class LoadFileDialog(customtkinter.CTkToplevel):
-    def __init__(self, parent, default_sheet_name="", default_x_col="", default_y_col=""):
+    def __init__(self, parent, default_sheet_name="", default_x_col="", default_y_col="", default_RFP_col="", default_RFP_smoothing_window_size=""):
         super().__init__(parent)
         self.parent = parent  # Save parent window reference
         self.parent.bind('<Destroy>', self.on_parent_destroy) # Listen for parent window close event
         self.title("Load")
-        self.geometry("200x500")
+        self.geometry("200x530")
 
         set_window_style(self)
         set_window_icon(self)
@@ -27,8 +25,12 @@ class LoadFileDialog(customtkinter.CTkToplevel):
         self.sheet_name = default_sheet_name
         self.x_col = default_x_col
         self.y_col = default_y_col
+        self.RFP_col = default_RFP_col
+        self.RFP_smoothing_window_size = default_RFP_smoothing_window_size
         self.user_cancelled = False
         self.evoked_status = None
+        self.convert_to_df_f = False
+        self.convert_to_dr_r = False
 
         # Create title label
         self.title_label = customtkinter.CTkLabel(
@@ -52,7 +54,7 @@ class LoadFileDialog(customtkinter.CTkToplevel):
 
         self.label_x_col = customtkinter.CTkLabel(
             self, 
-            text="X Column Name",
+            text="Time Column Name",
             font=customtkinter.CTkFont(size=12),
             anchor="w"
         )
@@ -63,7 +65,7 @@ class LoadFileDialog(customtkinter.CTkToplevel):
 
         self.label_y_col = customtkinter.CTkLabel(
             self, 
-            text="Y Column Name",
+            text="GFP Column Name",
             font=customtkinter.CTkFont(size=12),
             anchor="w"
         )
@@ -71,6 +73,30 @@ class LoadFileDialog(customtkinter.CTkToplevel):
         self.entry_y_col = customtkinter.CTkEntry(self, width=200)
         self.entry_y_col.insert(0, default_y_col)
         self.entry_y_col.pack(pady=(0, 10), padx=20)
+
+        self.label_RFP_col = customtkinter.CTkLabel(
+            self, 
+            text="RFP Column Name (optional)",
+            font=customtkinter.CTkFont(size=12),
+            anchor="w"
+        )
+        self.label_RFP_col.pack(padx=20, anchor="w")
+        self.entry_RFP_col = customtkinter.CTkEntry(self, width=200)
+        self.entry_RFP_col.insert(0, default_RFP_col)
+        self.entry_RFP_col.pack(pady=(0, 10), padx=20)
+        self.entry_RFP_col.bind('<KeyRelease>', self.on_RFP_col_change)
+
+        self.label_RFP_smoothing_window_size_col = customtkinter.CTkLabel(
+            self, 
+            text="RFP Smooth Size (optional)",
+            font=customtkinter.CTkFont(size=12),
+            anchor="w"
+        )
+        self.label_RFP_smoothing_window_size_col.pack(padx=20, anchor="w")
+        self.entry_RFP_smoothing_window_size_col = customtkinter.CTkEntry(self, width=200)
+        self.entry_RFP_smoothing_window_size_col.pack(pady=(0, 10), padx=20)
+        self.entry_RFP_smoothing_window_size_col.pack_forget()
+        self.label_RFP_smoothing_window_size_col.pack_forget()
 
         # Create a frame to contain the checkboxes
         self.checkbox_frame = customtkinter.CTkFrame(self)
@@ -115,6 +141,28 @@ class LoadFileDialog(customtkinter.CTkToplevel):
             border_color="black"  
         )
         self.mini_checkbox.pack(side="left")
+
+        convert_dr_r_icon = load_svg_image('assets/convert.svg', width=24, height=24)
+        convert_dr_r_icon_ctk = customtkinter.CTkImage(
+            light_image=convert_dr_r_icon,
+            dark_image=convert_dr_r_icon,
+            size=(20, 20)
+        )
+        self.convert_dr_r_button = customtkinter.CTkButton(
+            self,
+            image=convert_dr_r_icon_ctk,
+            compound="left",
+            fg_color="#dbdbdb", 
+            hover_color="#d5d9df",
+            text="Convert to DR/R",
+            text_color="black",
+            font=customtkinter.CTkFont(size=12, weight="bold"),
+            command=self.on_convert_DR_R,
+            height=40,
+            state="disabled"
+        )
+        # initially hidden
+        self.convert_dr_r_button.pack_forget()
 
         convert_icon = load_svg_image('assets/convert.svg', width=24, height=24)
         convert_icon_ctk = customtkinter.CTkImage(
@@ -166,9 +214,6 @@ class LoadFileDialog(customtkinter.CTkToplevel):
             state="disabled"
         )
         self.load_file_button.pack(pady=(5, 5))
-
-        # Add a new property to mark whether conversion is needed
-        self.convert_to_df_f = False
         
         # Handle window close event
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -199,24 +244,69 @@ class LoadFileDialog(customtkinter.CTkToplevel):
 
     def get_evoked_var(self):
         return self.evoked_var.get()  # Return the value of the StringVar ("on" or "off")
+    
+    def on_RFP_col_change(self, event):
+        RFP_col_content = self.entry_RFP_col.get().strip()
+        if RFP_col_content:
+            # hide all unnecessary widgets
+            self.convert_button.pack_forget()
+            self.or_label.pack_forget()
+            self.load_file_button.pack_forget()
+            self.checkbox_frame.pack_forget()
+            self.convert_dr_r_button.pack_forget()
+
+            # display widgets in the correct order
+            # 1. display RFP smoothing related widgets
+            self.label_RFP_smoothing_window_size_col.pack(padx=20, anchor="w")
+            self.entry_RFP_smoothing_window_size_col.pack(pady=(0, 10), padx=20)
+            
+            # 2. display checkbox frame
+            self.checkbox_frame.pack(pady=(5, 10), padx=20)
+            
+            # 3. display DR/R button
+            self.convert_dr_r_button.pack(pady=(5, 5))
+        else:
+            # if RFP column is empty, restore the original layout
+            # hide all DR/R related widgets
+            self.label_RFP_smoothing_window_size_col.pack_forget()
+            self.entry_RFP_smoothing_window_size_col.pack_forget()
+            self.checkbox_frame.pack_forget()
+            self.convert_dr_r_button.pack_forget()
+
+            # display widgets in the original order
+            self.checkbox_frame.pack(pady=(5, 10), padx=20)
+            self.convert_button.pack(pady=(5, 5))
+            self.or_label.pack(pady=(0, 0))
+            self.load_file_button.pack(pady=(5, 5))
+    
+    def on_convert_DR_R(self):
+        self.convert_to_df_f = True 
+        self.convert_to_dr_r = True
+        self.RFP_col = self.entry_RFP_col.get().strip()
+        self.RFP_smoothing_window_size = self.entry_RFP_smoothing_window_size_col.get().strip()
+        self.on_confirm()
 
     def on_evoked_changed(self):
         if self.evoked_var.get() == "on":
             self.mini_var.set("off")
             self.load_file_button.configure(state="normal")
             self.convert_button.configure(state="normal")
+            self.convert_dr_r_button.configure(state="normal")
         else:
             self.load_file_button.configure(state="disabled")
             self.convert_button.configure(state="disabled")
+            self.convert_dr_r_button.configure(state="disabled")
 
     def on_mini_changed(self):
         if self.mini_var.get() == "on":
             self.evoked_var.set("off")
             self.load_file_button.configure(state="normal")
             self.convert_button.configure(state="normal")
+            self.convert_dr_r_button.configure(state="normal")
         else:
             self.load_file_button.configure(state="disabled")
             self.convert_button.configure(state="disabled")
+            self.convert_dr_r_button.configure(state="disabled")
 
     def on_parent_destroy(self, event):
         # Check if the main window is being closed

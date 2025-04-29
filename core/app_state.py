@@ -1,5 +1,3 @@
-import customtkinter
-
 def initialize_data_state(app):
     """
     Initialize data-related state variables
@@ -66,6 +64,7 @@ def initialize_last_used_values(app):
     app.last_sheet_name = ""
     app.last_x_col = ""
     app.last_y_col = ""
+    app.last_RFP_col = ""
     app.last_peak_threshold = ""
     app.last_min_distance = ""
     app.last_peak_onset_window = ""

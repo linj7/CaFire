@@ -2,8 +2,10 @@ import openpyxl
 import traceback
 import numpy as np
 import pandas as pd
-import customtkinter
 from tkinter import filedialog, messagebox
+from ui.dialogs import LoadFileDialog
+from core.app_state import clear_plot
+from core.calculate_baseline import calculate_baseline
 
 def load_file(app):
     """
@@ -16,17 +18,14 @@ def load_file(app):
         bool: If the file is successfully loaded, return True, otherwise return False
     """
     try:
-        # Import necessary modules
-        from ui.dialogs import LoadFileDialog
-        from core.app_state import clear_plot
-        from core.calculate_baseline import calculate_baseline
-        
+
         # Create and display the input dialog, using the last input as the default value
         load_file_dialog = LoadFileDialog(
             app,
             default_sheet_name=app.last_sheet_name,
             default_x_col=app.last_x_col,
-            default_y_col=app.last_y_col
+            default_y_col=app.last_y_col,
+            default_RFP_col=app.last_RFP_col
         )
 
         try:
@@ -51,6 +50,9 @@ def load_file(app):
         sheet_name = load_file_dialog.sheet_name
         x_col = load_file_dialog.x_col
         y_col = load_file_dialog.y_col
+        RFP_col = load_file_dialog.RFP_col
+        RFP_smoothing_window_size = load_file_dialog.RFP_smoothing_window_size
+        convert_to_dr_r = load_file_dialog.convert_to_dr_r
         app.convert_to_df_f = load_file_dialog.convert_to_df_f     
         app.evoked_status = load_file_dialog.evoked_status
 
@@ -102,16 +104,35 @@ def load_file(app):
             # Find the indices of the x and y columns
             try:
                 x_idx = header.index(x_col)
-                y_idx = header.index(y_col)
             except ValueError:
-                messagebox.showerror(title="Error", message=f"Column '{x_col}' or '{y_col}' not found in the sheet.")
+                error_msg = f"Column '{x_col}' not found in the sheet."
+                messagebox.showerror(title="Error", message=error_msg)
                 app.progress_bar.set(0)
                 return False
+                
+            try:
+                y_idx = header.index(y_col)
+            except ValueError:
+                error_msg = f"Column '{y_col}' not found in the sheet."
+                messagebox.showerror(title="Error", message=error_msg)
+                app.progress_bar.set(0)
+                return False
+                
+            # if DR/R mode, find the index of the RFP column
+            if convert_to_dr_r and RFP_col:
+                try:
+                    rfp_idx = header.index(RFP_col)
+                except ValueError:
+                    error_msg = f"Column '{RFP_col}' not found in the sheet."
+                    messagebox.showerror(title="Error", message=error_msg)
+                    app.progress_bar.set(0)
+                    return False
             
             # Prepare data lists
             app.time = []
             app.df_f = []
-            
+            rfp_values = [] if convert_to_dr_r else None
+
             # Get the total number of rows estimate (cannot directly get the number of rows in read-only mode)
             # Using ws.max_row may be inaccurate, but can be used as a reference for the progress bar
             total_rows_estimate = ws.max_row - 1  # Subtract the header row
@@ -128,10 +149,17 @@ def load_file(app):
                     x_val = row[x_idx].value
                     y_val = row[y_idx].value
                     
-                    # Ensure the values are not None
-                    if x_val is not None and y_val is not None:
-                        app.time.append(float(x_val))
-                        app.df_f.append(float(y_val))
+                    # if DR/R mode, get the RFP value
+                    if convert_to_dr_r:
+                        rfp_val = row[rfp_idx].value
+                        if x_val is not None and y_val is not None and rfp_val is not None and float(rfp_val) != 0:
+                            app.time.append(float(x_val))
+                            app.df_f.append(float(y_val))
+                            rfp_values.append(float(rfp_val))
+                    else:
+                        if x_val is not None and y_val is not None:
+                            app.time.append(float(x_val))
+                            app.df_f.append(float(y_val))
                 except (IndexError, TypeError, ValueError) as e:
                     # Skip problematic rows
                     continue
@@ -155,11 +183,28 @@ def load_file(app):
             app.time = pd.Series(app.time)
             app.df_f = pd.Series(app.df_f)
             
-            if app.convert_to_df_f and app.df_f.mean() > 3:
-                # Calculate baseline
+            # handle DR/R case
+            if convert_to_dr_r:
+                rfp_values = pd.Series(rfp_values)
+
+                # if RFP smoothing window size is not empty, perform smoothing
+                if RFP_smoothing_window_size and int(RFP_smoothing_window_size) > 1:
+                    rfp_values = rfp_values.rolling(window=int(RFP_smoothing_window_size), center=True, min_periods=1).mean()
+
+                app.df_f = app.df_f / rfp_values
                 calculate_baseline(app)
                 
-                # Calculate DF/F
+                # calculate final DR/R
+                app.df_f = (app.df_f - app.baseline_values) / app.baseline_values
+                app.df_f = app.df_f.replace([np.inf, -np.inf], np.nan)
+                app.df_f = app.df_f.fillna(0)
+                app.progress_bar.set(0.98)
+            # handle DF/F case
+            elif app.convert_to_df_f and app.df_f.mean() > 3:
+                # calculate baseline
+                calculate_baseline(app)
+                
+                # calculate DF/F
                 app.df_f = (app.df_f - app.baseline_values) / app.baseline_values
                 app.df_f = app.df_f.replace([np.inf, -np.inf], np.nan)
                 app.df_f = app.df_f.fillna(0)

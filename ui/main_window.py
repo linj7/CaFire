@@ -348,7 +348,7 @@ def setup_table_frame(app):
     # Create treeview
     app.tree = ttk.Treeview(
         app.tree_frame,
-        columns=("Time", "ΔF/F", "Rise Time", "Decay Time", "Baseline"),
+        columns=("Time", "ΔF/F", "τ (rise)", "τ (decay)", "Baseline"),
         show="tree headings",
         height=8,
         selectmode="extended"
@@ -385,7 +385,10 @@ def setup_table_frame(app):
     style = ttk.Style()
     style.theme_use("clam")
     style.configure("Treeview", rowheight=25, font=('Helvetica', 14))
-    style.configure("Treeview.Heading", font=('Helvetica', 14, 'bold'))
+    style.configure(
+        "Treeview.Heading", 
+        font=('Segoe UI', 14, 'bold')
+    )
     
     # Add selected cell style
     app.tree.tag_configure("selected_cell", background="#CCE8FF")
