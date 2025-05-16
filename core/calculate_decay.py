@@ -121,7 +121,6 @@ def calculate_decay(app, single_peak=None, no_draw=False):
                 app.progress_bar.set(progress)
                 app.update()  # Force update GUI
             
-            # 只有在不需要延迟绘图时才立即绘制
             if not no_draw:
                 app.canvas.draw()
         except RuntimeError:

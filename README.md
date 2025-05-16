@@ -9,6 +9,7 @@ CaFire is a Python-based software designed for calcium imaging data analysis. It
 - **Data Loading and Processing**
   - Support for Excel file formats
   - Automatic ΔF/F calculation
+  - Automatically perform ΔR/R conversion after loading the RFP channel
   
 - **Peak Detection**
   - Automated mini detection with adjustable parameters
@@ -48,8 +49,6 @@ Or build into an exe file and execute:
 ```bash
 pyinstaller CaFire.spec
 ```
-
-
 
 ## Requirements
 
