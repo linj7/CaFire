@@ -3,6 +3,7 @@ Table operation function module
 Contains functions for handling table selection, copying, exporting, and event handling
 """
 import pandas as pd
+import numpy as np
 from PIL import Image, ImageDraw, ImageTk
 from tkinter import messagebox, filedialog
 from core.calculate_decay import calculate_decay, decay_function
@@ -231,6 +232,8 @@ def update_table(app):
         avg_peak_distance = 0
     # print(avg_peak_distance)
 
+    baseline_std = np.std(app.baseline_values)
+
     peaks_data = []
     for peak_time, peak_value in app.marked_peaks:
         rise_time = app.rise_times.get((peak_time, peak_value), "N/A")
@@ -254,6 +257,10 @@ def update_table(app):
                         time_diff = peak_time - prev_peak_time
                         prev_tau = app.tau_values[(prev_peak_time, prev_peak_value)]
                         decay_value = decay_function(time_diff, prev_tau, prev_peak_value)
+                        
+                        if decay_value < abs(baseline - 2 * baseline_std):
+                            decay_value = baseline
+
                         if app.convert_to_df_f == True:
                             delta_f_f = peak_value - decay_value
                         else: 

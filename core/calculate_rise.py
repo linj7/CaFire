@@ -114,7 +114,7 @@ def calculate_rise(app, single_peak=None, no_draw=False):
                 rise_start_index = peak_index - peak_onset_window + np.argmin(app.df_f[peak_index - peak_onset_window:peak_index])
 
         rise_start_value = app.df_f[rise_start_index]
-        app.baseline_values[peak_index] = rise_start_value
+        # app.baseline_values[peak_index] = rise_start_value
 
         # Prepare fitting data
         t_data = app.time[rise_start_index:peak_index + 1].values  # Use actual time values
