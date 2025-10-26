@@ -125,8 +125,9 @@ def setup_button_frame(app):
         font=customtkinter.CTkFont(size=12, weight="bold"),
         command=app.handle_partition
     )
-    app.partition_evoked_button.pack(side="left", padx=5, pady=5)
-    
+    # app.partition_evoked_button.pack(side="left", padx=5, pady=5)
+    app.partition_evoked_button.pack_forget()
+
     # Create progress bar
     app.progress_bar = SegmentedProgressBar(
         app.button_frame,

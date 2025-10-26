@@ -479,6 +479,22 @@ class PartitionEvokedDialog(customtkinter.CTkToplevel):
             peak_num = int(peak_num)
             interval_length = int(interval_length)
             offset = int(offset)
+
+            # Check if offset is greater than the distance from data start to first marked peak
+            if hasattr(self.parent, 'marked_peaks') and self.parent.marked_peaks and hasattr(self.parent, 'time') and self.parent.time is not None:
+                # Sort marked peaks by time to get the first peak
+                sorted_peaks = sorted(self.parent.marked_peaks, key=lambda peak: peak[0])
+                first_peak_time = sorted_peaks[0][0]
+                data_start_time = self.parent.time.iloc[0]
+                distance_to_first_peak = first_peak_time - data_start_time
+                
+                if offset > distance_to_first_peak:
+                    messagebox.showwarning(
+                        title="Warning", 
+                        message=f"Offset ({offset}) is greater than the distance from data start to first marked peak ({distance_to_first_peak:.2f}).",
+                        parent=self
+                    )
+                    return
             
             # Save values without closing the dialog
             self.peak_num = peak_num

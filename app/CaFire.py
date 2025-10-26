@@ -45,6 +45,11 @@ class App(customtkinter.CTk):
             messagebox.showwarning(title="Warning", message="No data loaded.")
             return
 
+        # Check if there are marked peaks
+        if not hasattr(self, 'marked_peaks') or not self.marked_peaks:
+            messagebox.showwarning(title="Warning", message="No peaks detected. Please identify peaks before partitioning.")
+            return
+
         # Show the PartitionEvokedDialog
         partition_dialog = PartitionEvokedDialog(
             self,
@@ -53,13 +58,13 @@ class App(customtkinter.CTk):
             default_offset=self.last_offset
         )
                 
-        # Clear previous partition lines and labels
-        for line in self.partition_lines:
-            line.remove()
-        for label in self.partition_labels:
-            label.remove()
-        self.partition_lines.clear()
-        self.partition_labels.clear()
+        # # Clear previous partition lines and labels
+        # for line in self.partition_lines:
+        #     line.remove()
+        # for label in self.partition_labels:
+        #     label.remove()
+        # self.partition_lines.clear()
+        # self.partition_labels.clear()
     
 apply_event_handlers(App)
 apply_table_operations(App)

@@ -224,6 +224,12 @@ def load_file(app):
             
             # Complete
             app.progress_bar.set(1.0)
+
+               # Show or hide partition button based on evoked_status
+            if app.evoked_status == "on":
+                app.partition_evoked_button.pack(side="left", padx=5, pady=5)
+            else:
+                app.partition_evoked_button.pack_forget()
             
             # Reset the progress bar after a delay
             app.after(500, lambda: app.progress_bar.set(0))
