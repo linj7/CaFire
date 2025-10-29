@@ -477,8 +477,8 @@ class PartitionEvokedDialog(customtkinter.CTkToplevel):
         try:
             # Convert input values to integers
             peak_num = int(peak_num)
-            interval_length = int(interval_length)
-            offset = int(offset)
+            interval_length = float(interval_length)
+            offset = float(offset)
 
             # Check if offset is greater than the distance from data start to first marked peak
             if hasattr(self.parent, 'marked_peaks') and self.parent.marked_peaks and hasattr(self.parent, 'time') and self.parent.time is not None:
