@@ -7,6 +7,7 @@ def initialize_data_state(app):
     """
     app.time = None
     app.df_f = None
+    app.raw_values = None
     app.baseline_values = None
     app.convert_to_df_f = False
 
@@ -150,6 +151,7 @@ def clear_plot(app, reset_data=False):
     if reset_data:
         app.time = None
         app.df_f = None
+        app.raw_values = None
         app.baseline_values = None
         app.peak_num = None
         if hasattr(app, 'evoked_var') and app.evoked_var is not None:

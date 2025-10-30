@@ -278,12 +278,19 @@ def update_table(app):
         else:
             baseline = "N/A"
             delta_f_f = "N/A"
+        
+        # NEW: get raw value at the same index from original series
+        if getattr(app, "raw_values", None) is not None and peak_index < len(app.raw_values):
+            raw_value = app.raw_values.iloc[peak_index]
+        else:
+            raw_value = "N/A"
 
         peaks_data.append((
             f"{int(peak_time)}",
             f"{delta_f_f:.6f}" if isinstance(delta_f_f, float) else delta_f_f,
             f"{rise_time:.6f}" if isinstance(rise_time, float) else rise_time,
             f"{decay_time:.6f}" if isinstance(decay_time, float) else decay_time,
+            f"{raw_value:.6f}" if isinstance(raw_value, float) else raw_value,
             f"{baseline:.6f}" if isinstance(baseline, float) else baseline
         ))
     

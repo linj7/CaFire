@@ -182,6 +182,8 @@ def load_file(app):
             # Convert to pandas Series
             app.time = pd.Series(app.time)
             app.df_f = pd.Series(app.df_f)
+            app.raw_values = pd.Series(app.df_f.values.copy())
+            # app.raw_values = app.df_f.copy(deep=True)
             
             # handle DR/R case
             if convert_to_dr_r:
@@ -224,6 +226,11 @@ def load_file(app):
             
             # Complete
             app.progress_bar.set(1.0)
+
+            print(app.raw_values)
+            print("--------------------------------")
+            print(app.df_f)
+            print("--------------------------------")
 
                # Show or hide partition button based on evoked_status
             if app.evoked_status == "on":

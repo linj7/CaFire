@@ -349,7 +349,7 @@ def setup_table_frame(app):
     # Create treeview
     app.tree = ttk.Treeview(
         app.tree_frame,
-        columns=("Time", "ΔF/F", "τ (rise)", "τ (decay)", "Baseline"),
+        columns=("Time", "ΔF/F", "τ (rise)", "τ (decay)", "Peak Value", "Baseline"),
         show="tree headings",
         height=8,
         selectmode="extended"
