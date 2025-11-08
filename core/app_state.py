@@ -8,6 +8,7 @@ def initialize_data_state(app):
     app.time = None
     app.df_f = None
     app.raw_values = None
+    app.raw_baseline = None
     app.baseline_values = None
     app.convert_to_df_f = False
 
@@ -52,6 +53,9 @@ def initialize_parameters(app):
     """
     app.peak_num = None
     app.window_size = None
+    app.click_window_size = None
+    app.baseline_window_size = None
+    app.baseline_percentage = None
     app.manual_select_peak_threshold = None
     app.evoked_status = None
 
@@ -66,6 +70,8 @@ def initialize_last_used_values(app):
     app.last_x_col = ""
     app.last_y_col = ""
     app.last_RFP_col = ""
+    app.last_baseline_window_size = ""
+    app.last_baseline_percentage = ""
     app.last_peak_threshold = ""
     app.last_min_distance = ""
     app.last_peak_onset_window = ""
@@ -152,8 +158,12 @@ def clear_plot(app, reset_data=False):
         app.time = None
         app.df_f = None
         app.raw_values = None
+        app.raw_baseline = None
         app.baseline_values = None
+        app.baseline_window_size = None
+        app.baseline_percentage = None
         app.peak_num = None
+        app.click_window_size = None
         if hasattr(app, 'evoked_var') and app.evoked_var is not None:
             app.evoked_var.set("off")
     

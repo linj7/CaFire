@@ -228,9 +228,14 @@ def update_table(app):
     if len(app.marked_peaks) > 1:
         peak_distances = [app.marked_peaks[i+1][0] - app.marked_peaks[i][0] for i in range(len(app.marked_peaks) - 1)]
         avg_peak_distance = sum(peak_distances) / len(peak_distances)
+        #std_peak_distance = np.std(peak_distances, ddof=1)
+        # percentile_80 = np.percentile(peak_distances, 80) if len(peak_distances) > 0 else 0
     else:
         avg_peak_distance = 0
-    # print(avg_peak_distance)
+        # std_peak_distance = 0
+        # percentile_80 = 0
+
+    print("avg_peak_distance: ", avg_peak_distance)
 
     baseline_std = np.std(app.baseline_values)
 
@@ -238,17 +243,33 @@ def update_table(app):
     for peak_time, peak_value in app.marked_peaks:
         rise_time = app.rise_times.get((peak_time, peak_value), "N/A")
         decay_time = app.tau_values.get((peak_time, peak_value), "N/A")
-        
+
         peak_index = app.time[app.time == peak_time].index[0]
+
+        # NEW: get raw value at the same index from original series
+        if getattr(app, "raw_values", None) is not None and peak_index < len(app.raw_values):
+            raw_value = app.raw_values.iloc[peak_index]
+        else:
+            raw_value = "N/A"
+        
         if app.baseline_values is not None and peak_index < len(app.baseline_values):
             baseline = app.baseline_values[peak_index]
+            
+            raw_baseline = (
+                app.raw_baseline[peak_index]
+                if getattr(app, 'raw_baseline', None) is not None
+                else app.baseline_values[peak_index]
+            )
 
             if app.evoked_status == "on":
                 # Get the index of current peak in marked_peaks
                 current_peak_idx = app.marked_peaks.index((peak_time, peak_value))
                 
+                # peak_time - app.marked_peaks[current_peak_idx-1][0] <= percentile_80 or
                 # If there is a previous peak
-                if current_peak_idx > 0 and peak_time - app.marked_peaks[current_peak_idx-1][0] < avg_peak_distance:
+                if current_peak_idx > 0 and peak_time - app.marked_peaks[current_peak_idx-1][0] <= 0.8 * avg_peak_distance:
+                    print(peak_time, "with distance: ", peak_time - app.marked_peaks[current_peak_idx-1][0])
+                    print("===")
                     prev_peak_time, prev_peak_value = app.marked_peaks[current_peak_idx - 1]
 
                     # Check if there is a previous decay curve
@@ -260,38 +281,35 @@ def update_table(app):
                         
                         if decay_value < abs(baseline - 2 * baseline_std):
                             decay_value = baseline
-
+                        
                         if app.convert_to_df_f == True:
                             delta_f_f = peak_value - decay_value
+                            raw_baseline = decay_value = raw_value / (delta_f_f + 1)
                         else: 
-                            delta_f_f = (peak_value - decay_value) / decay_value
-                else:
+                            raw_baseline = decay_value
+                            delta_f_f = (raw_value - raw_baseline) / raw_baseline  
+                else: # e.g. 1Hz
                     if app.convert_to_df_f == True:
                         delta_f_f = peak_value
                     else: 
-                        delta_f_f = (peak_value - baseline) / baseline
-            else:
+                        delta_f_f = (raw_value - raw_baseline) / raw_baseline
+            else: # mini
                 if app.convert_to_df_f == True:
                     delta_f_f = peak_value
                 else: 
-                    delta_f_f = (peak_value - baseline) / baseline
+                    delta_f_f = (raw_value - raw_baseline) / raw_baseline
         else:
             baseline = "N/A"
+            raw_baseline = "N/A"
             delta_f_f = "N/A"
-        
-        # NEW: get raw value at the same index from original series
-        if getattr(app, "raw_values", None) is not None and peak_index < len(app.raw_values):
-            raw_value = app.raw_values.iloc[peak_index]
-        else:
-            raw_value = "N/A"
 
         peaks_data.append((
-            f"{int(peak_time)}",
+            f"{peak_time:g}",
             f"{delta_f_f:.6f}" if isinstance(delta_f_f, float) else delta_f_f,
             f"{rise_time:.6f}" if isinstance(rise_time, float) else rise_time,
             f"{decay_time:.6f}" if isinstance(decay_time, float) else decay_time,
             f"{raw_value:.6f}" if isinstance(raw_value, float) else raw_value,
-            f"{baseline:.6f}" if isinstance(baseline, float) else baseline
+            f"{raw_baseline:.6f}" if isinstance(raw_baseline, float) else raw_baseline
         ))
     
     # Sort by time

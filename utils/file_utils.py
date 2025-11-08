@@ -25,7 +25,9 @@ def load_file(app):
             default_sheet_name=app.last_sheet_name,
             default_x_col=app.last_x_col,
             default_y_col=app.last_y_col,
-            default_RFP_col=app.last_RFP_col
+            default_RFP_col=app.last_RFP_col,
+            default_baseline_window_size=app.last_baseline_window_size,
+            default_baseline_percentage=app.last_baseline_percentage
         )
 
         try:
@@ -52,6 +54,8 @@ def load_file(app):
         y_col = load_file_dialog.y_col
         RFP_col = load_file_dialog.RFP_col
         RFP_smoothing_window_size = load_file_dialog.RFP_smoothing_window_size
+        baseline_window_size = load_file_dialog.baseline_window_size
+        baseline_percentage = load_file_dialog.baseline_percentage
         convert_to_dr_r = load_file_dialog.convert_to_dr_r
         app.convert_to_df_f = load_file_dialog.convert_to_df_f     
         app.evoked_status = load_file_dialog.evoked_status
@@ -60,10 +64,17 @@ def load_file(app):
             messagebox.showwarning(title="Warning", message="All fields must be filled out.")
             return False
 
+        if not baseline_window_size:
+            baseline_window_size = 50
+        if not baseline_percentage:
+            baseline_percentage = 30
+
         # Update the last used input values
         app.last_sheet_name = sheet_name
         app.last_x_col = x_col
         app.last_y_col = y_col
+        app.last_baseline_window_size = baseline_window_size
+        app.last_baseline_percentage = baseline_percentage
 
         # Use the file dialog to select a file
         file_path = filedialog.askopenfilename()
@@ -183,7 +194,12 @@ def load_file(app):
             app.time = pd.Series(app.time)
             app.df_f = pd.Series(app.df_f)
             app.raw_values = pd.Series(app.df_f.values.copy())
-            # app.raw_values = app.df_f.copy(deep=True)
+
+            calculate_baseline(app, window_size=int(baseline_window_size), percentile=float(baseline_percentage))
+            if getattr(app, 'baseline_values', None) is not None:
+                app.raw_baseline = app.baseline_values.copy()
+            else:
+                app.raw_baseline = None
             
             # handle DR/R case
             if convert_to_dr_r:
@@ -194,7 +210,7 @@ def load_file(app):
                     rfp_values = rfp_values.rolling(window=int(RFP_smoothing_window_size), center=True, min_periods=1).mean()
 
                 app.df_f = app.df_f / rfp_values
-                calculate_baseline(app)
+                calculate_baseline(app, window_size=int(baseline_window_size), percentile=float(baseline_percentage))
                 
                 # calculate final DR/R
                 app.df_f = (app.df_f - app.baseline_values) / app.baseline_values
@@ -204,7 +220,7 @@ def load_file(app):
             # handle DF/F case
             elif app.convert_to_df_f and app.df_f.mean() > 3:
                 # calculate baseline
-                calculate_baseline(app)
+                # calculate_baseline(app, window_size=int(baseline_window_size), percentile=float(baseline_percentage))
                 
                 # calculate DF/F
                 app.df_f = (app.df_f - app.baseline_values) / app.baseline_values
@@ -213,26 +229,32 @@ def load_file(app):
                 app.progress_bar.set(0.98)
             
             if 0 <= app.df_f.mean() <= 3:
-                app.convert_to_df_f = True
-
-            calculate_baseline(app)
+                app.convert_to_df_f = True    
 
             # Draw the chart
             app.ax.clear()
             app.ax.plot(app.time, app.df_f, color='black')
             app.ax.set_ylim(np.min(app.df_f), np.max(app.df_f))
             app.ax.grid(True)
+
+            if (not app.convert_to_df_f) and hasattr(app, 'baseline_values') and app.baseline_values is not None:
+                # clear old baseline
+                if hasattr(app, 'baseline_line') and app.baseline_line is not None:
+                    try:
+                        app.baseline_line.remove()
+                    except Exception:
+                        pass
+                    app.baseline_line = None
+                
+                app.baseline_line, = app.ax.plot(app.time, app.baseline_values, color='deepskyblue', linestyle='--', linewidth=1.5, alpha=0.8, label='Baseline')
+                app.ax.legend(loc='best')
+
             app.canvas.draw()
             
             # Complete
             app.progress_bar.set(1.0)
 
-            print(app.raw_values)
-            print("--------------------------------")
-            print(app.df_f)
-            print("--------------------------------")
-
-               # Show or hide partition button based on evoked_status
+            # Show or hide partition button based on evoked_status
             if app.evoked_status == "on":
                 app.partition_evoked_button.pack(side="left", padx=5, pady=5)
             else:

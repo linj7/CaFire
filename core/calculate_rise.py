@@ -12,7 +12,8 @@ def rise_function(t, tau, y0_baseline):
 
 
 def calculate_rise(app, single_peak=None, no_draw=False):
-    calculate_baseline(app)
+    calculate_baseline(app, window_size=int(app.last_baseline_window_size), percentile=float(app.last_baseline_percentage))
+
     total_peaks = len(app.marked_peaks)
 
     # Sort marked peaks by time
@@ -120,7 +121,6 @@ def calculate_rise(app, single_peak=None, no_draw=False):
         t_data = app.time[rise_start_index:peak_index + 1].values  # Use actual time values
         t_data_range = t_data - t_data[0]  # Make time start from 0
         y_data_original = np.array(app.df_f[rise_start_index:peak_index + 1])
-
 
         # Handle the case where the starting point is 0, NaN, or negative
         start_value = y_data_original[0]

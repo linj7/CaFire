@@ -3,15 +3,16 @@ import pandas as pd
 import customtkinter
 from tkinter import filedialog, messagebox
 from utils.image_utils import load_svg_image
+from ui.widgets import Tooltip
 from ui.window import set_window_style, set_window_icon
 
 class LoadFileDialog(customtkinter.CTkToplevel):
-    def __init__(self, parent, default_sheet_name="", default_x_col="", default_y_col="", default_RFP_col="", default_RFP_smoothing_window_size=""):
+    def __init__(self, parent, default_sheet_name="", default_x_col="", default_y_col="", default_RFP_col="", default_RFP_smoothing_window_size="", default_baseline_window_size="", default_baseline_percentage=""):
         super().__init__(parent)
         self.parent = parent  # Save parent window reference
         self.parent.bind('<Destroy>', self.on_parent_destroy) # Listen for parent window close event
         self.title("Load")
-        self.geometry("200x530")
+        self.geometry("230x650")
 
         set_window_style(self)
         set_window_icon(self)
@@ -19,7 +20,7 @@ class LoadFileDialog(customtkinter.CTkToplevel):
         # Set window position to the left of the main window
         parent_x = parent.winfo_x()
         parent_y = parent.winfo_y()
-        self.geometry(f"+{parent_x - 360}+{parent_y}")
+        self.geometry(f"+{parent_x - 465}+{parent_y}")
 
         # Set default values from parameters
         self.sheet_name = default_sheet_name
@@ -27,6 +28,8 @@ class LoadFileDialog(customtkinter.CTkToplevel):
         self.y_col = default_y_col
         self.RFP_col = default_RFP_col
         self.RFP_smoothing_window_size = default_RFP_smoothing_window_size
+        self.baseline_window_size = default_baseline_window_size
+        self.baseline_percentage = default_baseline_percentage
         self.user_cancelled = False
         self.evoked_status = None
         self.convert_to_df_f = False
@@ -54,7 +57,7 @@ class LoadFileDialog(customtkinter.CTkToplevel):
 
         self.label_x_col = customtkinter.CTkLabel(
             self, 
-            text="Time Column Name",
+            text="Time / Frame Number",
             font=customtkinter.CTkFont(size=12),
             anchor="w"
         )
@@ -65,7 +68,7 @@ class LoadFileDialog(customtkinter.CTkToplevel):
 
         self.label_y_col = customtkinter.CTkLabel(
             self, 
-            text="GFP Column Name",
+            text="Channel #1 (Signal — Required)",
             font=customtkinter.CTkFont(size=12),
             anchor="w"
         )
@@ -76,7 +79,7 @@ class LoadFileDialog(customtkinter.CTkToplevel):
 
         self.label_RFP_col = customtkinter.CTkLabel(
             self, 
-            text="RFP Column Name (optional)",
+            text="Channel #2 (Reference — Optional)",
             font=customtkinter.CTkFont(size=12),
             anchor="w"
         )
@@ -88,7 +91,7 @@ class LoadFileDialog(customtkinter.CTkToplevel):
 
         self.label_RFP_smoothing_window_size_col = customtkinter.CTkLabel(
             self, 
-            text="RFP Smooth Size (optional)",
+            text="Channel #2 Smooth Size (Optional)",
             font=customtkinter.CTkFont(size=12),
             anchor="w"
         )
@@ -97,6 +100,36 @@ class LoadFileDialog(customtkinter.CTkToplevel):
         self.entry_RFP_smoothing_window_size_col.pack(pady=(0, 10), padx=20)
         self.entry_RFP_smoothing_window_size_col.pack_forget()
         self.label_RFP_smoothing_window_size_col.pack_forget()
+
+        # Baseline window size
+        self.label_baseline_window_size = customtkinter.CTkLabel(
+            self, text="Baseline Window Size",
+            font=customtkinter.CTkFont(size=12), anchor="w"
+        )
+        self.label_baseline_window_size.pack(padx=20, anchor="w")
+        Tooltip(self.label_baseline_window_size, "Number of data points used in each sliding window to calculate baseline")
+
+        self.entry_baseline_window_size = customtkinter.CTkEntry(self, width=200, placeholder_text="default 50")
+        if default_baseline_window_size:
+            self.entry_baseline_window_size.insert(0, default_baseline_window_size)
+        self.entry_baseline_window_size.pack(pady=(0, 10), padx=20)
+        self.entry_baseline_window_size.bind('<FocusOut>', self.validate_window_size_event)
+       # self.entry_baseline_window_size.bind('<KeyRelease>', self.validate_window_size_event)
+
+        # Baseline percentage
+        self.label_baseline_percentage = customtkinter.CTkLabel(
+            self, text="Baseline Percentile (0-100%)",
+            font=customtkinter.CTkFont(size=12), anchor="w"
+        )
+        self.label_baseline_percentage.pack(padx=20, anchor="w")
+        Tooltip(self.label_baseline_percentage, "Defines how low the baseline sits relative to the data in each window")
+
+        self.entry_baseline_percentage = customtkinter.CTkEntry(self, width=200, placeholder_text="default 30")
+        if default_baseline_percentage:
+            self.entry_baseline_percentage.insert(0, default_baseline_percentage)
+        self.entry_baseline_percentage.pack(pady=(0, 10), padx=20)
+        self.entry_baseline_percentage.bind('<FocusOut>', self.validate_percentile_event)
+       # self.entry_baseline_percentage.bind('<KeyRelease>', self.validate_percentile_event)
 
         # Create a frame to contain the checkboxes
         self.checkbox_frame = customtkinter.CTkFrame(self)
@@ -230,12 +263,53 @@ class LoadFileDialog(customtkinter.CTkToplevel):
         self.sheet_name = self.entry_sheet.get().strip()  
         self.x_col = self.entry_x_col.get().strip() 
         self.y_col = self.entry_y_col.get().strip() 
+        self.baseline_window_size = self.entry_baseline_window_size.get().strip()
+        self.baseline_percentage = self.entry_baseline_percentage.get().strip()
         self.evoked_status = self.evoked_var.get()
         if not self.sheet_name or not self.x_col or not self.y_col:
             messagebox.showwarning(title="Warning", message="All fields must be filled out.", parent=self)
             return
+        if not self.validate_window_size(self.baseline_window_size):
+            return
+        if not self.validate_percentile_0_100(self.baseline_percentage):
+            return
         self.grab_release()
         self.destroy()
+    
+    def validate_window_size(self, value: str) -> bool:
+        v = value.strip()
+        if not v: 
+            return True
+        try:
+            f = float(v)
+            if f.is_integer() and int(f) >= 1:
+                return True
+            messagebox.showwarning(title="Warning", message="Baseline window size must be a positive integer (no decimals).", parent=self)
+            return False
+        except Exception:
+            messagebox.showwarning(title="Warning", message="Baseline window size must be a number.", parent=self)
+            return False
+
+    def validate_percentile_0_100(self, value: str) -> bool:
+        v = value.strip()
+        if not v: 
+            return True
+        try:
+            p = float(v)
+            if 0.0 <= p <= 100.0:
+                return True
+            messagebox.showwarning(title="Warning", message="Baseline percentile must be between 0 and 100.", parent=self)
+            return False
+        except Exception:
+            messagebox.showwarning(title="Warning", message="Baseline percentile must be a number between 0 and 100.", parent=self)
+            return False
+
+    # Event wrapper (avoid passing string directly)
+    def validate_window_size_event(self, event=None):
+        self.validate_window_size(self.entry_baseline_window_size.get())
+
+    def validate_percentile_event(self, event=None):
+        self.validate_percentile_0_100(self.entry_baseline_percentage.get())
 
     def on_close(self):
         self.user_cancelled = True
@@ -254,16 +328,26 @@ class LoadFileDialog(customtkinter.CTkToplevel):
             self.load_file_button.pack_forget()
             self.checkbox_frame.pack_forget()
             self.convert_dr_r_button.pack_forget()
+            self.label_baseline_window_size.pack_forget()
+            self.entry_baseline_window_size.pack_forget()
+            self.label_baseline_percentage.pack_forget()
+            self.entry_baseline_percentage.pack_forget()
 
             # display widgets in the correct order
             # 1. display RFP smoothing related widgets
             self.label_RFP_smoothing_window_size_col.pack(padx=20, anchor="w")
             self.entry_RFP_smoothing_window_size_col.pack(pady=(0, 10), padx=20)
-            
-            # 2. display checkbox frame
+
+            # 2. display baseline related widgets
+            self.label_baseline_window_size.pack(padx=20, anchor="w")
+            self.entry_baseline_window_size.pack(pady=(0, 10), padx=20)
+            self.label_baseline_percentage.pack(padx=20, anchor="w")
+            self.entry_baseline_percentage.pack(pady=(0, 10), padx=20)
+
+            # 3. display checkbox frame
             self.checkbox_frame.pack(pady=(5, 10), padx=20)
             
-            # 3. display DR/R button
+            # 4. display DR/R button
             self.convert_dr_r_button.pack(pady=(5, 5))
         else:
             # if RFP column is empty, restore the original layout
@@ -272,13 +356,26 @@ class LoadFileDialog(customtkinter.CTkToplevel):
             self.entry_RFP_smoothing_window_size_col.pack_forget()
             self.checkbox_frame.pack_forget()
             self.convert_dr_r_button.pack_forget()
+            self.convert_button.pack_forget()
+            self.or_label.pack_forget()
+            self.load_file_button.pack_forget()
+
+            self.label_baseline_window_size.pack_forget()
+            self.entry_baseline_window_size.pack_forget()
+            self.label_baseline_percentage.pack_forget()
+            self.entry_baseline_percentage.pack_forget()
+            
+            # Then display them in the original order (before checkbox)
+            self.label_baseline_window_size.pack(padx=20, anchor="w")
+            self.entry_baseline_window_size.pack(pady=(0, 10), padx=20)
+            self.label_baseline_percentage.pack(padx=20, anchor="w")
+            self.entry_baseline_percentage.pack(pady=(0, 10), padx=20)
 
             # display widgets in the original order
             self.checkbox_frame.pack(pady=(5, 10), padx=20)
             self.convert_button.pack(pady=(5, 5))
             self.or_label.pack(pady=(0, 0))
             self.load_file_button.pack(pady=(5, 5))
-    
     def on_convert_DR_R(self):
         self.convert_to_df_f = True 
         self.convert_to_dr_r = True
@@ -647,7 +744,7 @@ class DetectPeaksDialog(customtkinter.CTkToplevel):
         # Set window position to the left of the main window
         parent_x = parent.winfo_x()
         parent_y = parent.winfo_y()
-        self.geometry(f"+{parent_x - 450}+{parent_y}")
+        self.geometry(f"+{parent_x - 490}+{parent_y}")
 
         self.peak_threshold = None
         self.min_distance = None

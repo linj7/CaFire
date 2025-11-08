@@ -20,13 +20,13 @@ def setup_ui(app):
     """
     # Configure window properties
     app.title("CaFire by Lin - Dickman Lab")
-
         
     # Add window centering code
     screen_width = app.winfo_screenwidth()
     screen_height = app.winfo_screenheight()
     window_width = 700  # Set default window width
-    window_height = 600  # Set default window height
+    window_height = 650  # Set default window height
+
     # Set window minimum size
     app.minsize(window_width, window_height)
     
@@ -59,6 +59,28 @@ def setup_ui(app):
     
     # Bind navigation controls
     setup_navigation_controls(app)
+    
+    # Fix layout issue when window is restored from minimized state
+    def on_window_map(event):
+        """Handle window restore from minimized state"""
+        # Force update geometry to fix layout
+        app.update_idletasks()
+        # Ensure grid weights are still applied
+        app.grid_rowconfigure(1, weight=3)
+        app.grid_rowconfigure(2, weight=1)
+        # Force layout recalculation
+        app.canvas_frame.update_idletasks()
+        app.table_frame.update_idletasks()
+    
+    def on_window_configure(event):
+        """Handle window resize events"""
+        # Only process if window is not minimized
+        if event.widget == app and app.state() != 'iconic':
+            app.update_idletasks()
+    
+    # Bind events to handle window restore
+    app.bind('<Map>', on_window_map)
+    app.bind('<Configure>', on_window_configure)
     
 def setup_button_frame(app):
     """Set up the top button frame with control buttons"""
@@ -265,6 +287,39 @@ def setup_canvas_frame(app):
     app.down_page_label.place(relx=1.0, rely=0.5, x=-25, y=center_offset + button_spacing, anchor='e')
     app.down_page_label.configure(cursor="hand2")
 
+    app.click_window_size_frame = customtkinter.CTkFrame(
+        app.canvas_frame,
+        fg_color="#ffffff",
+        border_width=0,
+        corner_radius=0,  
+        border_color="white",
+        bg_color="transparent"
+    )
+    app.click_window_size_frame.place(relx=1.0, rely=0.0, x=-5, y=5, anchor="ne")
+
+    app.click_window_size_label = customtkinter.CTkLabel(
+        app.click_window_size_frame,
+        text="Peak Click Window Size:",
+        font=customtkinter.CTkFont(size=11, weight="bold"),
+        text_color="black"   
+    )
+    app.click_window_size_label.pack(side="left", padx=(6, 4), pady=6)
+
+    app.click_window_size_entry = customtkinter.CTkEntry(
+        app.click_window_size_frame,
+        width=50,
+        corner_radius=6,
+        border_width=1,
+        fg_color="#ffffff"
+    )
+    app.click_window_size_entry.pack(side="left", padx=(0, 6), pady=6)
+
+    def reposition_click_window_size_frame(event=None):
+        if app.click_window_size_frame.winfo_ismapped():
+            app.click_window_size_frame.place_configure(relx=1.0, rely=0.0, x=-5, y=5)
+
+    app.canvas_frame.bind("<Configure>", reposition_click_window_size_frame)
+
 def setup_table_frame(app):
     """Set up the table frame with treeview and control buttons"""
     # Create table frame
@@ -349,7 +404,7 @@ def setup_table_frame(app):
     # Create treeview
     app.tree = ttk.Treeview(
         app.tree_frame,
-        columns=("Time", "ΔF/F", "τ (rise)", "τ (decay)", "Peak Value", "Baseline"),
+        columns=("Time", "ΔF/F", "τ (rise)", "τ (decay)", "Raw Peak Value", "Baseline"),
         show="tree headings",
         height=8,
         selectmode="extended"

@@ -44,6 +44,24 @@ def apply_threshold(app):
                 # Clear previous points
                 clear_plot(app, reset_data=False)
 
+                # Redraw baseline when in "Load Raw Data" mode (i.e., not converted to ΔF/F or DR/R)
+                if (not getattr(app, 'convert_to_df_f', False)) and hasattr(app, 'baseline_values') and app.baseline_values is not None:
+                    # Remove residual references (set to None by clear_plot, just to be safe)
+                    if hasattr(app, 'baseline_line') and app.baseline_line is not None:
+                        try:
+                            app.baseline_line.remove()
+                        except Exception:
+                            pass
+                        app.baseline_line = None
+
+                    # Redraw baseline
+                    app.baseline_line, = app.ax.plot(app.time, app.baseline_values, color='deepskyblue', linestyle='--', linewidth=1.5, alpha=0.8, label='Baseline')
+                    # Avoid duplicate legend: get existing labels and add as needed
+                    handles, labels = app.ax.get_legend_handles_labels()
+                    if 'Baseline' not in labels:
+                        app.ax.legend(loc='best')
+                    app.canvas.draw()
+
                 # Build the parameter dictionary for find_peaks
                 peak_params = {'height': peak_threshold}
                 if dialog.min_distance:

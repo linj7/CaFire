@@ -13,12 +13,30 @@ def handle_canvas_click(event, app):
             # Find the nearest peak within a given window size
             x_clicked = event.xdata
 
-            # Create a mask to find data points within the window
-            time_range = app.time.max() - app.time.min()
-            window_size = int(time_range * 0.0008)
-            if window_size < 10:
-                window_size = 3
-           
+            user_window_size = None
+            if hasattr(app, "click_window_size_entry"):
+                raw_value = app.click_window_size_entry.get().strip()
+                if raw_value:
+                    try:
+                        user_window_size = float(raw_value)
+                        if user_window_size <= 0:
+                            raise ValueError
+                    except ValueError:
+                        messagebox.showwarning(
+                            title="Warning",
+                            message="Window size must be a positive number."
+                        )
+                        user_window_size = None
+
+            if user_window_size is not None:
+                window_size = user_window_size
+            else:
+                # Fallback to default calculation when user input is absent or invalid
+                time_range = app.time.max() - app.time.min()
+                window_size = int(time_range * 0.0008)
+                if window_size < 10:
+                    window_size = 3
+            print("window_size: ", window_size)
             window_mask = (app.time >= x_clicked - window_size) & (app.time <= x_clicked + window_size)
             window_time = app.time[window_mask]
             window_df_f = app.df_f[window_mask]
