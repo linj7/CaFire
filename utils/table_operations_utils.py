@@ -210,7 +210,7 @@ def handle_tree_right_click(app, event):
             column_name = app.tree["columns"][column_id - 1]
             
             # If the column is Decay Time, show the context menu
-            if column_name == "Decay Time":
+            if column_name == "τ (decay)":
                 app.right_clicked_column = column_name
                 app.context_menu.post(event.x_root, event.y_root)
     
@@ -321,7 +321,7 @@ def update_table(app):
 
 def recalculate_column(app):
     """Recalculate the selected column"""
-    if hasattr(app, 'right_clicked_column') and app.right_clicked_column == "Decay Time":
+    if hasattr(app, 'right_clicked_column') and app.right_clicked_column == "τ (decay)":
         # Clear all decay curves
         for line in app.decay_lines:
             line.remove()

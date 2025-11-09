@@ -8,6 +8,7 @@ CaFire is a Python-based software designed for calcium imaging data analysis. It
 
 - **Data Loading and Processing**
   - Support for Excel file formats
+  - Supports baseline calculation using customizable window size and percentile settings
   - Automatic ΔF/F calculation
   - Automatically perform ΔR/R conversion after loading the RFP channel
   
@@ -47,7 +48,7 @@ python main.py
 Or build into an exe file and execute:
 
 ```bash
-pyinstaller CaFire.spec
+pyinstaller main.py --onefile --noconsole --name="CaFire" --icon=assets/ecg_icon.ico --add-data "assets;assets"
 ```
 
 ## Requirements
@@ -69,20 +70,22 @@ pyinstaller CaFire.spec
 1. Click the "Load File" button
 2. Select your Excel file
 3. Specify the sheet name and column names for time and fluorescence data
-4. Choose whether to analyze evoked or miniature events
-5. Choose whether to convert to ΔF/F format
+4. Set the baseline calculation parameters — window size and percentile
+5. Choose whether to analyze evoked or miniature events
+6. Choose whether to convert to ΔF/F format
 
 ### Peak Detection
 
 1. Click the "Detect Peaks" button
 2. Set detection parameters:
-   - Peak threshold
+   - Peak threshold (required)
    - Minimum distance between peaks
    - Peak width
 3. Review detected peaks
-4. Manually add or remove peaks by clicking on the plot
-5. Review all the fitted curves
-6. For peaks with poor decay fitting, right-click "Decay Time" in the table and click recalculate
+4. Enter the peak click window size in the upper-right input box
+5. Manually add or remove peaks by clicking on the plot
+6. Review all the fitted curves
+7. For peaks with poor decay fitting, right-click "Decay Time" in the table and click recalculate
 
 ### Evoked Response Analysis
 This feature is only applicable to evoked data.

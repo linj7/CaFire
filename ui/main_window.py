@@ -289,34 +289,34 @@ def setup_canvas_frame(app):
 
     app.click_window_size_frame = customtkinter.CTkFrame(
         app.canvas_frame,
-        fg_color="#ffffff",
+        fg_color="white",       
+        bg_color="white",       
         border_width=0,
-        corner_radius=0,  
-        border_color="white",
-        bg_color="transparent"
+        corner_radius=0
     )
-    app.click_window_size_frame.place(relx=1.0, rely=0.0, x=-5, y=5, anchor="ne")
+    app.click_window_size_frame.place(relx=1.0, rely=1.0, x=-5, y=5, anchor="se")
 
     app.click_window_size_label = customtkinter.CTkLabel(
         app.click_window_size_frame,
         text="Peak Click Window Size:",
-        font=customtkinter.CTkFont(size=11, weight="bold"),
+        font=customtkinter.CTkFont(size=10, weight="bold"),
         text_color="black"   
     )
-    app.click_window_size_label.pack(side="left", padx=(6, 4), pady=6)
+    app.click_window_size_label.pack(side="left", padx=(6, 4), pady=4)
 
     app.click_window_size_entry = customtkinter.CTkEntry(
         app.click_window_size_frame,
         width=50,
+        height=24,
         corner_radius=6,
         border_width=1,
         fg_color="#ffffff"
     )
-    app.click_window_size_entry.pack(side="left", padx=(0, 6), pady=6)
+    app.click_window_size_entry.pack(side="left", padx=(0, 6), pady=4)
 
     def reposition_click_window_size_frame(event=None):
         if app.click_window_size_frame.winfo_ismapped():
-            app.click_window_size_frame.place_configure(relx=1.0, rely=0.0, x=-5, y=5)
+            app.click_window_size_frame.place_configure(relx=1.0, rely=1.0, x=-5, y=5)
 
     app.canvas_frame.bind("<Configure>", reposition_click_window_size_frame)
 
