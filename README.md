@@ -69,7 +69,7 @@ pyinstaller main.py --onefile --noconsole --name="CaFire" --icon=assets/ecg_icon
 
 2.  Export the resulting measurements to Excel and ensure that the **first row contains the appropriate column headers** (example excel file provided).
 
-   ![Example_excel](./assets/screenshots/example_excel_file.png)
+   ![Example_excel](./assets/screenshots/example_excel.png)
 
 3. Open CaFire and enter the required acquisition parameters. Import the Excel file that contains the ROI time-series data. 
 
@@ -83,7 +83,7 @@ pyinstaller main.py --onefile --noconsole --name="CaFire" --icon=assets/ecg_icon
 5. After peak detection is finalized, use the **Partition** function to automatically divide the trace into predefined segments.
 6. Finally, export all processed results to a new Excel file for downstream analysis.
 
-![CaFire_analysis_workflow](./assets/screenshots/CaFire_analysis_workflow.png)
+​	![CaFir_workflow](./assets/screenshots/CaFire_workflow.png)
 
 ## Contributing
 
