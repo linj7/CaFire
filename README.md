@@ -69,7 +69,7 @@ pyinstaller main.py --onefile --noconsole --name="CaFire" --icon=assets/ecg_icon
 
 2.  Export the resulting measurements to Excel and ensure that the **first row contains the appropriate column headers** (example excel file provided).
 
-   ![Example_excel](./assets/screenshots/example_excel.png)
+   <img src="./assets/screenshots/example_excel.png" alt="Example_excel" style="zoom: 50%;" />
 
 3. Open CaFire and enter the required acquisition parameters. Import the Excel file that contains the ROI time-series data. 
 
