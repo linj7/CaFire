@@ -80,10 +80,12 @@ pyinstaller main.py --onefile --noconsole --name="CaFire" --icon=assets/ecg_icon
    c. In single-channel mode, users may choose to load **raw fluorescence data** or allow CaFire to compute **ΔF/F** automatically. In dual-channel mode, CaFire will automatically compute and plot **ΔR/R** traces.
 
 4. Use the **Peak Detection** tool to identify events automatically. Data can be further inspected by zooming into individual regions using the **Zoom In** button; peaks can be manually **selected** (left-click) or **unselected** (right-click) for correction. 
+
 5. After peak detection is finalized, use the **Partition** function to automatically divide the trace into predefined segments.
+
 6. Finally, export all processed results to a new Excel file for downstream analysis.
 
-​	![CaFir_workflow](./assets/screenshots/CaFire_workflow.png)
+   ![CaFir_workflow](./assets/screenshots/CaFire_workflow.png)
 
 ## Contributing
 
