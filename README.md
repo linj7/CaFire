@@ -25,8 +25,6 @@ CaFire is a Python-based software designed for calcium imaging data analysis. It
   - Customizable interval settings
   - Export capabilities for analyzed segments
 
-![Partition Analysis](./assets/screenshots/partition_analysis.png)
-
 ## Installation
 
 1. Download the latest release from the [releases page](https://github.com/linj7/CaFire/releases)
@@ -63,39 +61,29 @@ pyinstaller main.py --onefile --noconsole --name="CaFire" --icon=assets/ecg_icon
 - Pillow==11.1.0
 - scipy==1.10.1
 
-## Usage Guide
+## Processing Pipeline for ROI Extraction and CaFire Analysis
 
-### Loading Data
+1. Import the processed images into Fiji/ImageJ. Using the “**Freehand Selection Tool”**, draw ROIs around the structures of interest. For each ROI, perform **“Multi Measure”** separately on the GCaMP and mScarlet channels.
 
-1. Click the "Load File" button
-2. Select your Excel file
-3. Specify the sheet name and column names for time and fluorescence data
-4. Set the baseline calculation parameters — window size and percentile
-5. Choose whether to analyze evoked or miniature events
-6. Choose whether to convert to ΔF/F format
+   ![ImageJ](./assets/screenshots/ImageJ.png)
 
-### Peak Detection
+2.  Export the resulting measurements to Excel and ensure that the **first row contains the appropriate column headers** (example excel file provided).
 
-1. Click the "Detect Peaks" button
-2. Set detection parameters:
-   - Peak threshold (required)
-   - Minimum distance between peaks
-   - Peak width
-3. Review detected peaks
-4. Enter the peak click window size in the upper-right input box
-5. Manually add or remove peaks by clicking on the plot
-6. Review all the fitted curves
-7. For peaks with poor decay fitting, right-click "Decay Time" in the table and click recalculate
+   ![Example_excel](./assets/screenshots/example_excel_file.png)
 
-### Evoked Response Analysis
-This feature is only applicable to evoked data.
-1. Click "Partition Evoked Data"
-2. Set partition parameters:
-   - Number of peaks per interval
-   - Interval size
-   - Offset
-3. Review partitioned segments
-4. Export results using the export button
+3. Open CaFire and enter the required acquisition parameters. Import the Excel file that contains the ROI time-series data. 
+
+   a. For **single-channel imaging**, load the GCaMP signal into **Channel 1**; For **dual-channel imaging**, also load the mScarlet signal into **Channel 2**.
+
+   b. For evoked recordings, check the **“Evoked”** option; for spontaneous recordings (miniature events), select **“Mini.”**
+
+   c. In single-channel mode, users may choose to load **raw fluorescence data** or allow CaFire to compute **ΔF/F** automatically. In dual-channel mode, CaFire will automatically compute and plot **ΔR/R** traces.
+
+4. Use the **Peak Detection** tool to identify events automatically. Data can be further inspected by zooming into individual regions using the **Zoom In** button; peaks can be manually **selected** (left-click) or **unselected** (right-click) for correction. 
+5. After peak detection is finalized, use the **Partition** function to automatically divide the trace into predefined segments.
+6. Finally, export all processed results to a new Excel file for downstream analysis.
+
+![CaFire_analysis_workflow](./assets/screenshots/CaFire_analysis_workflow.png)
 
 ## Contributing
 
