@@ -93,16 +93,10 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Citation
 
-If you use this code in your research, please cite:
+If you find this software useful in your research, please cite our relevant paper:
 
 Chen, J., Lin, J., et al. (2026). Resolving synaptic events using subsynaptically targeted GCaMP8 variants. *eLife*, 14:RP107939. https://doi.org/10.7554/eLife.107939.3
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Contact
-
-- Author: Junhao Lin
-- Lab: Dickman Lab
-- Email: linjunha@usc.edu
